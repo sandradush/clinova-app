@@ -16,6 +16,8 @@ type Props = {
 export default function Dashboard({ email, onLogout, name, avatarUri, userId }: Props) {
   const [tab, setTab] = useState<'home' | 'appointments' | 'settings' | 'profile'>('home');
   const [appointmentStats, setAppointmentStats] = useState({ total: 0, today: 0, pending: 0 });
+  const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
+  const [nextAppointment, setNextAppointment] = useState<any | null>(null);
   const [profileImage, setProfileImage] = useState<string | undefined>(avatarUri);
   const displayName = name || (email ? email.split('@')[0] : 'User');
   const avatar = profileImage || `https://i.pravatar.cc/150?u=${encodeURIComponent(email || 'anon')}`;
@@ -48,6 +50,28 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
         });
         const data = await response.json();
         if (response.ok && Array.isArray(data)) {
+          // Save full list for later use
+          setAppointmentsList(data);
+          // Compute next appointment (earliest upcoming by date+time)
+          const toDate = (item: any) => {
+            const dateOnly = (item?.date || '').split('T')[0];
+            const timeOnly = item?.time || '';
+            if (!dateOnly) return null;
+            try {
+              // combine date and time as UTC
+              return new Date(`${dateOnly}T${timeOnly}Z`);
+            } catch (e) {
+              return null;
+            }
+          };
+          const now = new Date();
+          const sorted = data
+            .map((d: any) => ({ ...d, _dt: toDate(d) }))
+            .filter((d: any) => d._dt)
+            .sort((a: any, b: any) => (a._dt as Date).getTime() - (b._dt as Date).getTime());
+          const next = sorted.find((d: any) => (d._dt as Date).getTime() >= now.getTime()) || sorted[0] || null;
+          setNextAppointment(next);
+
           const todayKey = new Date().toISOString().split('T')[0];
           const total = data.length;
           const today = data.filter(item => (item?.date || '').split('T')[0] === todayKey).length;
@@ -119,11 +143,25 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
           {tab === 'home' && (
             <>
               <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
-              <View style={styles.appCard}>
-                <Text style={styles.appTitle}>Dr. Emily Carter — Teleconsult</Text>
-                <Text style={styles.appTime}>Tomorrow • 10:30 AM</Text>
-                <Text style={styles.appNote}>Video call — 20 minutes</Text>
-              </View>
+                {nextAppointment ? (
+                  <View style={styles.appCard}>
+                    <Text style={styles.appTitle}>{nextAppointment.doctor_name || nextAppointment.title || 'Upcoming appointment' }{nextAppointment.doctor_name ? ' — Teleconsult' : ''}</Text>
+                    <Text style={styles.appTime}>{(() => {
+                      try {
+                        const dateOnly = (nextAppointment.date || '').split('T')[0];
+                        const timeOnly = nextAppointment.time || '';
+                        const dt = new Date(`${dateOnly}T${timeOnly}Z`);
+                        return dt.toLocaleDateString() + ' • ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                      } catch (e) { return nextAppointment.datetime || '' }
+                    })()}</Text>
+                    <Text style={styles.appNote}>{nextAppointment.description || ''}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.appCard}>
+                    <Text style={styles.appTitle}>No upcoming appointments</Text>
+                    <Text style={styles.appNote}>You have no scheduled appointments.</Text>
+                  </View>
+                )}
 
               
 
@@ -198,11 +236,11 @@ const styles = StyleSheet.create({
     width: 60, 
     height: 60, 
     borderRadius: 30, 
-    backgroundColor: '#059669', 
+    backgroundColor: '#0b3d91', 
     marginRight: 16,
     borderWidth: 3,
     borderColor: '#FFFFFF',
-    shadowColor: '#059669',
+    shadowColor: '#0b3d91',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -230,11 +268,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0b3d91',
     marginRight: 6,
   },
   statusText: {
-    color: '#10B981',
+    color: '#0b3d91',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -264,31 +302,31 @@ const styles = StyleSheet.create({
   statsCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
     justifyContent: 'space-around',
     shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   statItem: {
     alignItems: 'center',
   },
   statNumber: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '800',
     color: '#1E293B',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#64748B',
     fontWeight: '600',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   },
   statDivider: {
     width: 1,
@@ -311,14 +349,14 @@ const styles = StyleSheet.create({
   card: { 
     flex: 1, 
     backgroundColor: '#FFFFFF', 
-    padding: 20, 
-    borderRadius: 16, 
+    padding: 12, 
+    borderRadius: 12, 
     alignItems: 'center', 
     shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   pendingCard: {
     borderLeftWidth: 4,
@@ -326,23 +364,23 @@ const styles = StyleSheet.create({
   },
   waitingCard: {
     borderLeftWidth: 4,
-    borderLeftColor: '#059669',
+    borderLeftColor: '#0b3d91',
   },
   completedCard: {
     borderLeftWidth: 4,
     borderLeftColor: '#3B82F6',
   },
   cardIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   cardIconText: {
-    fontSize: 18,
+    fontSize: 16,
   },
   cardTitle: { 
     color: '#64748B', 
@@ -373,31 +411,31 @@ const styles = StyleSheet.create({
   },
   quickActionCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 10,
     alignItems: 'center',
-    width: '23%',
-    minWidth: 70,
+    width: '22%',
+    minWidth: 60,
     shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
   },
   quickActionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   quickActionIconText: {
     fontSize: 16,
   },
   quickActionText: {
     color: '#374151',
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
   },
@@ -429,7 +467,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   tabActive: { 
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
   },
   icon: { 
     fontSize: 20,
@@ -486,7 +524,7 @@ const styles = StyleSheet.create({
     padding: 16, 
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#059669',
+    borderLeftColor: '#0b3d91',
     shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,

@@ -166,7 +166,6 @@ export default function Appointment({ userId }: { userId?: number }) {
       <View style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.pageTitle}>Appointments</Text>
-          <Text style={styles.pageSubtitle}>Manage your healthcare consultations</Text>
         </View>
 
         {loadingAppointments ? (
@@ -383,14 +382,14 @@ const styles = StyleSheet.create({
   },
   appCard: { 
     backgroundColor: '#FFFFFF', 
-    borderRadius: 16, 
-    padding: 20, 
-    marginBottom: 16,
+    borderRadius: 12, 
+    padding: 12, 
+    marginBottom: 12,
     shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
   appHeader: {
     flexDirection: 'row',
@@ -403,13 +402,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   doctorAvatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#059669',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#0b3d91',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 8,
   },
   doctorInitial: {
     fontSize: 18,
@@ -420,27 +419,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   appTitle: { 
-    fontSize: 18, 
+    fontSize: 16, 
     fontWeight: '700', 
     color: '#1E293B',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   appTime: { 
     color: '#64748B', 
-    fontSize: 14,
-    marginBottom: 8,
+    fontSize: 12,
+    marginBottom: 6,
   },
   statusBadge: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
   statusPending: {
     backgroundColor: '#FEF3C7',
   },
   statusConfirmed: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#EEF2FF',
   },
   statusCancelled: {
     backgroundColor: '#FEE2E2',
@@ -453,7 +452,7 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   statusConfirmedText: {
-    color: '#047857',
+    color: '#0b3d91',
   },
   statusCancelledText: {
     color: '#B91C1C',
@@ -508,7 +507,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryAction: { 
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
   },
   secondaryAction: { 
     backgroundColor: '#0F172A',
@@ -529,17 +528,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#059669', 
-    paddingVertical: 16, 
-    borderRadius: 12,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    backgroundColor: '#0b3d91', 
+    paddingVertical: 10, 
+    borderRadius: 10,
+    shadowColor: '#0b3d91',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 3,
   },
   addIcon: {
-    fontSize: 18,
+    fontSize: 16,
     color: '#FFFFFF',
     marginRight: 8,
     fontWeight: '700',
@@ -547,7 +546,7 @@ const styles = StyleSheet.create({
   addBtnText: { 
     color: '#FFFFFF', 
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: 14,
   },
   modalOverlay: { 
     flex: 1, 
@@ -621,7 +620,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   modalSave: { 
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
   },
   modalCancelText: { 
     color: '#64748B',

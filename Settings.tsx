@@ -7,13 +7,14 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
   const [darkMode, setDarkMode] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [language, setLanguage] = useState<'english'|'kinyarwanda'|'french'>('english');
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
 
   return (
     <RNSSafeAreaView style={[styles.safe, darkMode && styles.darkSafe]}>
       <View style={[styles.container, darkMode && styles.darkContainer]}>
         <View style={styles.header}>
           <Text style={[styles.title, darkMode && styles.darkTitle]}>Settings</Text>
-          <Text style={[styles.subtitle, darkMode && styles.darkSubtitle]}>Manage your preferences and account</Text>
         </View>
 
         {/* <View style={styles.section}>
@@ -26,8 +27,8 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
             <Switch 
               value={notifications} 
               onValueChange={setNotifications}
-              trackColor={{ false: '#E5E7EB', true: '#A7F3D0' }}
-              thumbColor={notifications ? '#10B981' : '#9CA3AF'}
+              trackColor={{ false: '#E5E7EB', true: '#0b3d91' }}
+              thumbColor={notifications ? '#0b3d91' : '#9CA3AF'}
             />
           </View>
           <View style={styles.row}>
@@ -35,8 +36,8 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
             <Switch 
               value={soundEnabled} 
               onValueChange={setSoundEnabled}
-              trackColor={{ false: '#E5E7EB', true: '#A7F3D0' }}
-              thumbColor={soundEnabled ? '#10B981' : '#9CA3AF'}
+              trackColor={{ false: '#E5E7EB', true: '#0b3d91' }}
+              thumbColor={soundEnabled ? '#0b3d91' : '#9CA3AF'}
             />
           </View>
         </View> */}
@@ -50,12 +51,23 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
             <Switch 
               value={darkMode} 
               onValueChange={setDarkMode}
-              trackColor={{ false: '#E5E7EB', true: '#A7F3D0' }}
-              thumbColor={darkMode ? '#10B981' : '#9CA3AF'}
+              trackColor={{ false: '#E5E7EB', true: '#0b3d91' }}
+              thumbColor={darkMode ? '#0b3d91' : '#9CA3AF'}
             />
           </View>
         </View>
 
+
+        <View style={[styles.section, darkMode && styles.darkSection]}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => setShowLanguagePicker(true)} accessibilityRole="button">
+            <View style={{ flexDirection: 'column' }}>
+              <Text style={[styles.menuItemText, darkMode && styles.darkMenuItemText]}>Language</Text>
+              <Text style={[styles.languageCurrent, darkMode && styles.darkLanguageCurrent]}>{language === 'english' ? 'English' : language === 'kinyarwanda' ? 'Kinyarwanda' : 'French'}</Text>
+            </View>
+            <Text style={styles.menuItemArrow}>›</Text>
+          </TouchableOpacity>
+
+        </View>
 
         <View style={[styles.section, darkMode && styles.darkSection]}>
           <View style={styles.sectionHeader}>
@@ -138,6 +150,50 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
             </ScrollView>
           </RNSSafeAreaView>
         </Modal>
+        <Modal visible={showLanguagePicker} animationType="slide" transparent={false}>
+          <RNSSafeAreaView style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select language</Text>
+              <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalContent} contentContainerStyle={{ paddingVertical: 8 }}>
+              <Text style={styles.modalSubtitle}>Choose the language you prefer for the app interface.</Text>
+
+              <TouchableOpacity style={styles.languageRow} onPress={() => { setLanguage('english'); setShowLanguagePicker(false); }} accessibilityRole="button">
+                <View style={styles.languageTextWrap}>
+                  <Text style={styles.languageOptionText}>English</Text>
+                  <Text style={styles.languageNative}>English</Text>
+                </View>
+                <View style={styles.radioOuter} accessible accessibilityRole="image" accessibilityLabel={language === 'english' ? 'Selected' : 'Not selected'}>
+                  {language === 'english' && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.languageRow} onPress={() => { setLanguage('kinyarwanda'); setShowLanguagePicker(false); }} accessibilityRole="button">
+                <View style={styles.languageTextWrap}>
+                  <Text style={styles.languageOptionText}>Kinyarwanda</Text>
+                  <Text style={styles.languageNative}>Ikinyarwanda</Text>
+                </View>
+                <View style={styles.radioOuter} accessible accessibilityRole="image" accessibilityLabel={language === 'kinyarwanda' ? 'Selected' : 'Not selected'}>
+                  {language === 'kinyarwanda' && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.languageRow} onPress={() => { setLanguage('french'); setShowLanguagePicker(false); }} accessibilityRole="button">
+                <View style={styles.languageTextWrap}>
+                  <Text style={styles.languageOptionText}>French</Text>
+                  <Text style={styles.languageNative}>Français</Text>
+                </View>
+                <View style={styles.radioOuter} accessible accessibilityRole="image" accessibilityLabel={language === 'french' ? 'Selected' : 'Not selected'}>
+                  {language === 'french' && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+
+            </ScrollView>
+          </RNSSafeAreaView>
+        </Modal>
       </View>
     </RNSSafeAreaView>
   );
@@ -156,7 +212,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: { 
-    fontSize: 28, 
+    fontSize: 24, 
     fontWeight: '800', 
     color: '#1E293B',
     marginBottom: 4,
@@ -167,35 +223,35 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   section: { 
-    backgroundColor: '#FFFFFF', 
-    borderRadius: 16, 
-    padding: 20, 
-    marginBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
     shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   sectionIcon: {
-    fontSize: 20,
-    marginRight: 12,
+    fontSize: 18,
+    marginRight: 10,
   },
   sectionTitle: { 
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700', 
     color: '#1E293B',
   },
   row: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -208,7 +264,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -223,7 +279,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   accountInfo: {
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
     marginBottom: 8,
@@ -244,13 +300,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EF4444', 
-    borderRadius: 12, 
-    paddingVertical: 16,
+    borderRadius: 10,
+    paddingVertical: 12,
     shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    elevation: 3,
   },
 
   logoutText: { 
@@ -266,13 +322,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
     color: '#1E293B',
   },
@@ -282,10 +338,72 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
+
+  languageOption: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  languageOptionText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  languageSelected: {
+    color: '#0b3d91',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginHorizontal: 12,
+    marginBottom: 12,
+  },
+  languageRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  languageTextWrap: {
+    flexDirection: 'column',
+  },
+  languageNative: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+  radioOuter: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#0b3d91',
+  },
+  languageCurrent: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  darkLanguageCurrent: { color: '#94A3B8' },
   policyTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     color: '#1E293B',
     marginBottom: 24,
@@ -293,20 +411,20 @@ const styles = StyleSheet.create({
   },
   policySection: {
     flexDirection: 'row',
-    marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+    marginBottom: 12,
+    backgroundColor: '#WHITE',
+    borderRadius: 8,
+    padding: 12,
     shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
   sectionNumber: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#059669',
+    color: '#0b3d91',
     marginRight: 12,
     marginTop: 2,
   },
@@ -314,14 +432,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionHeading: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1E293B',
     marginBottom: 8,
   },
   sectionText: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
     color: '#374151',
   },
   darkSafe: { backgroundColor: '#1E293B' },

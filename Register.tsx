@@ -69,7 +69,7 @@ export default function Register({ onCancel }: Props) {
 
           <View style={styles.form}>
             <Text style={styles.label}>Full name</Text>
-            <TextInput value={fullName} onChangeText={setFullName} placeholder="First Last" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
+            <TextInput value={fullName} onChangeText={setFullName} placeholder="First Last" style={[styles.input, styles.inputFilled]} placeholderTextColor="#0b3d91" />
 
             <Text style={styles.label}>Gender</Text>
             <View style={[styles.input, styles.inputFilled, styles.pickerWrapper]}>
@@ -83,10 +83,10 @@ export default function Register({ onCancel }: Props) {
             </View>
 
             <Text style={styles.label}>Phone</Text>
-            <TextInput value={phone} onChangeText={setPhone} placeholder="+1 555 555 5555" keyboardType="phone-pad" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
+            <TextInput value={phone} onChangeText={setPhone} placeholder="+1 555 555 5555" keyboardType="phone-pad" style={[styles.input, styles.inputFilled]} placeholderTextColor="#0b3d91" />
 
             <Text style={styles.label}>Email</Text>
-            <TextInput value={email} onChangeText={setEmail} placeholder="you@company.com" keyboardType="email-address" autoCapitalize="none" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
+            <TextInput value={email} onChangeText={setEmail} placeholder="you@company.com" keyboardType="email-address" autoCapitalize="none" style={[styles.input, styles.inputFilled]} placeholderTextColor="#0b3d91" />
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
@@ -96,7 +96,7 @@ export default function Register({ onCancel }: Props) {
                 placeholder="Create a password" 
                 secureTextEntry={!showPassword} 
                 style={[styles.input, styles.inputFilled, styles.passwordInput]} 
-                placeholderTextColor="#9CA3AF" 
+                placeholderTextColor="#0b3d91" 
               />
               <TouchableOpacity 
                 onPress={() => setShowPassword(!showPassword)} 
@@ -114,7 +114,7 @@ export default function Register({ onCancel }: Props) {
                 placeholder="Repeat password" 
                 secureTextEntry={!showConfirmPassword} 
                 style={[styles.input, styles.inputFilled, styles.passwordInput]} 
-                placeholderTextColor="#9CA3AF" 
+                placeholderTextColor="#0b3d91" 
               />
               <TouchableOpacity 
                 onPress={() => setShowConfirmPassword(!showConfirmPassword)} 
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   input: {
     width: '100%',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderColor: '#0b3d91',
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical:6,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 4,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#0b3d91',
   },
   card: {
     width: '100%',
@@ -163,19 +163,19 @@ const styles = StyleSheet.create({
     paddingVertical: 22,
     paddingHorizontal: 20,
     alignItems: 'stretch',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0b3d91',
     borderRadius: 14,
-    shadowColor: '#000',
+    shadowColor: '#030d1a',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
     elevation: 6,
   },
   form: { width: '100%', marginTop: 6 },
-  safeArea: { flex: 1, backgroundColor: '#F3F4F6' },
-  cardTitle: { fontSize: 20, fontWeight: '700', color: '#111827', textAlign: 'center' },
-  label: { color: '#374151', fontSize: 13, marginBottom: 6, marginTop: 8 },
-  inputFilled: { backgroundColor: '#F9FAFB', borderWidth: 0, paddingHorizontal: 14, paddingVertical: 12 },
+  safeArea: { flex: 1, backgroundColor: '#0b3d91' },
+  cardTitle: { fontSize: 20, fontWeight: '700', color: '#0b3d91', textAlign: 'center' },
+  label: { color: '#0b3d91', fontSize: 13, marginBottom: 6, marginTop: 8 },
+  inputFilled: { backgroundColor: '#0b3d91', borderWidth: 0, paddingHorizontal: 14, paddingVertical: 12 },
   pickerWrapper: {
     paddingHorizontal: 2,
     paddingVertical: 0,
@@ -183,13 +183,13 @@ const styles = StyleSheet.create({
   picker: {
     width: '100%'
   },
-  button: { width: '100%', backgroundColor: '#2563EB', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
-  buttonText: { color: '#FFFFFF', fontWeight: '600' },
+  button: { width: '100%', backgroundColor: '#0b3d91', borderRadius: 8, paddingVertical: 12, alignItems: 'center', marginTop: 4 },
+  buttonText: { color: '#0b3d91', fontWeight: '600' },
   row: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
   buttonDisabled: {
     opacity: 0.6,
   },
-  linkSecondary: { color: '#6B7280', fontSize: 13 },
+  linkSecondary: { color: '#0b3d91', fontSize: 13 },
   passwordContainer: {
     position: 'relative',
     width: '100%',

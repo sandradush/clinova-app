@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -225,12 +225,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
+    backgroundColor: '#0b3d91',
     marginRight: 4,
   },
   statusText: {
     fontSize: 12,
-    color: '#10B981',
+    color: '#0b3d91',
     fontWeight: '500',
   },
   closeBtn: {
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 8,
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   myBubble: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
     borderBottomRightRadius: 6,
   },
   theirBubble: {
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendBtnActive: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
   },
   sendBtnInactive: {
     backgroundColor: '#E2E8F0',

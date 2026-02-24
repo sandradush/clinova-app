@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, Alert, Platform, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
 
@@ -133,19 +133,19 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
         <View style={styles.headerSpacer} />
       </View>
 
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
-          <Image source={{ uri: localAvatar || avatarUri || `https://i.pravatar.cc/150?u=${encodeURIComponent(email||'anon')}` }} style={styles.avatar} />
-          <TouchableOpacity style={styles.changeAvatar} onPress={pickImageAndUpload}>
-            <Text style={styles.changeAvatarText}>Change Avatar</Text>
-          </TouchableOpacity>
-          <Text style={styles.name}>{displayName}</Text>
-          <Text style={styles.email}>{email || 'No email'}</Text>
-          <View style={styles.statusContainer}>
-            <View style={styles.statusDot} />
-            <Text style={styles.statusText}>Available</Text>
+            <Image source={{ uri: localAvatar || avatarUri || `https://i.pravatar.cc/150?u=${encodeURIComponent(email||'anon')}` }} style={styles.avatar} />
+            <TouchableOpacity style={styles.changeAvatar} onPress={pickImageAndUpload}>
+              <Text style={styles.changeAvatarText}>Change Avatar</Text>
+            </TouchableOpacity>
+            <Text style={styles.name}>{displayName}</Text>
+            <Text style={styles.email}>{email || 'No email'}</Text>
+            <View style={styles.statusContainer}>
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>Available</Text>
+            </View>
           </View>
-        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Personal Information</Text>
@@ -176,7 +176,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Phone</Text>
             {editing ? (
-              <TextInput style={styles.input} value={localPatient?.phone || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), phone: t })} />
+              <TextInput style={styles.input} value={localPatient?.phone || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), phone: t })} keyboardType="phone-pad" />
             ) : (
               <Text style={styles.infoValue}>{patient?.phone || 'Not set'}</Text>
             )}
@@ -237,7 +237,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
         <TouchableOpacity style={styles.logout} onPress={() => onLogout && onLogout()}>
           <Text style={styles.logoutText}>Sign out</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
     </RNSSafeAreaView>
   );
 }
@@ -265,17 +265,17 @@ const styles = StyleSheet.create({
   },
   backIcon: {
     fontSize: 18,
-    color: '#059669',
+    color: '#1E293B',
     marginRight: 4,
     fontWeight: '600',
   },
   backText: {
-    color: '#059669',
+    color: '#1E293B',
     fontSize: 16,
     fontWeight: '600',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1E293B',
   },
@@ -285,62 +285,63 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    paddingBottom: 120,
   },
   profileCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 8,
+    padding: 8,
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
     shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
-    backgroundColor: '#E5E7EB',
-    borderWidth: 4,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    marginBottom: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
     borderColor: '#FFFFFF',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#1E293B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   name: {
-    fontSize: 24,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1E293B',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   email: {
     color: '#64748B',
-    fontSize: 16,
-    marginBottom: 12,
+    fontSize: 11,
+    marginBottom: 6,
   },
   statusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10B981',
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#0b3d91',
     marginRight: 6,
   },
   statusText: {
-    color: '#047857',
-    fontSize: 12,
+    color: '#0b3d91',
+    fontSize: 10,
     fontWeight: '600',
   },
   section: {
@@ -370,7 +371,7 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#374151',
     fontWeight: '500',
     flex: 1,
   },
@@ -382,14 +383,14 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   editButton: {
-    backgroundColor: '#059669',
+    backgroundColor: '#0b3d91',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginBottom: 12,
-    shadowColor: '#059669',
+    shadowColor: '#0b3d91',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.18,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -408,31 +409,32 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   cancelButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F1F5F9',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     marginLeft: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
   },
   cancelButtonText: {
-    color: '#1E293B',
+    color: '#374151',
     fontSize: 16,
     fontWeight: '700',
   },
   changeAvatar: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    marginTop: 4,
+    backgroundColor: '#0b3d91',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#0b3d91',
   },
   changeAvatarText: {
-    color: '#059669',
+    color: '#FFFFFF',
     fontWeight: '700',
+    fontSize: 11,
   },
   logout: {
     backgroundColor: '#EF4444',
