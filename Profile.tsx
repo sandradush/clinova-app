@@ -34,7 +34,76 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
 
   function startEdit() { setLocalPatient(patient ? { ...patient } : {}); setEditing(true); }
   function cancelEdit() { setLocalPatient(patient); setEditing(false); }
-  function saveEdit() { if (onSave) onSave(localPatient); setEditing(false); }
+  async function saveProfile() {
+    const uid = userId ?? localPatient?.user_id;
+    if (!uid) { Alert.alert('Save failed', 'No user id available'); return; }
+
+    const payload: any = {
+      user_id: uid,
+      dob: localPatient?.dob || null,
+      gender: localPatient?.gender || null,
+      phone: localPatient?.phone || null,
+      blood_group: localPatient?.blood_group || null,
+      allergies: localPatient?.allergies || [],
+      chronic_conditions: localPatient?.chronic_conditions || [],
+      current_medications: localPatient?.current_medications || [],
+      emergency_contact_name: localPatient?.emergency_contact_name || null,
+      address: localPatient?.address || null,
+      insurance: {
+        additionalProp1: { Provide: (localPatient?.insurance === 'other' ? (localPatient as any)?.insurance_other || 'Other' : (localPatient?.insurance || '')) }
+      }
+    };
+
+    try {
+      const resp = await fetch('https://clinic-backend-s2lx.onrender.com/api/auth/profile', {
+        method: 'POST',
+        headers: { 'accept': 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await resp.json();
+      if (resp.ok && json?.profile) {
+        // server returns insurance as a stringified object; attempt to parse
+        const p = { ...(json.profile as any) };
+        if (p.insurance && typeof p.insurance === 'string') {
+          try { p.insurance = JSON.parse(p.insurance.trim()); } catch (e) { /* leave as-is */ }
+        }
+        setLocalPatient(p as Patient);
+        if (onSave) onSave(p as Patient);
+        Alert.alert('Success', json.message || 'Profile saved');
+        setEditing(false);
+      } else {
+        console.warn('profile save failed', resp.status, json);
+        Alert.alert('Save failed', json?.message || `Server returned ${resp.status}`);
+      }
+    } catch (err) {
+      console.warn('saveProfile error', err);
+      Alert.alert('Save error', String(err));
+    }
+  }
+
+  function saveEdit() { saveProfile(); }
+
+  function formatInsurance(ins: any) {
+    if (!ins) return 'Not set';
+    if (typeof ins === 'string') {
+      // try parse stringified JSON
+      try { ins = JSON.parse(ins.trim()); } catch (e) { return ins; }
+    }
+    if (typeof ins === 'object') {
+      // common shape: { additionalProp1: { Provide: 'RAMA' } }
+      if (ins.additionalProp1 && typeof ins.additionalProp1 === 'object') {
+        const ap = ins.additionalProp1;
+        if (ap.Provide) return String(ap.Provide);
+        const vals = Object.values(ap).filter(Boolean);
+        if (vals.length) return String(vals[0]);
+      }
+      // fallback: extract first primitive value
+      const flat = Object.values(ins).flatMap(v => (v && typeof v === 'object') ? Object.values(v) : [v]).filter(Boolean);
+      if (flat.length) return String(flat[0]);
+      return JSON.stringify(ins);
+    }
+    return String(ins);
+  }
 
   async function fetchPreview(userId?: number) {
     if (userId === undefined) return;
@@ -239,8 +308,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
               </View>
             ) : (
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Text style={styles.infoValue}>{patient?.insurance ? (patient.insurance === 'others' ? (patient.insurance_other || 'Other') : patient.insurance) : 'Not set'}</Text>
-                {patient?.insurance_policy_number ? <Text style={{ color: '#64748B', fontSize: 12 }}>{patient.insurance_policy_number}</Text> : null}
+                <Text style={styles.infoValue}>{formatInsurance((patient as any)?.insurance)}</Text>
               </View>
             )}
           </View>

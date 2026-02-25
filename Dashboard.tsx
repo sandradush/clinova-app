@@ -46,64 +46,20 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
   const fetchAppointmentStats = async () => {
     if (!userId) return;
     try {
-      const response = await fetch(`https://clinic-backend-s2lx.onrender.com/api/appointments/patient/${userId}`, {
+      const response = await fetch(`https://clinic-backend-s2lx.onrender.com/api/appointments/patient/${userId}/stats`, {
         method: 'GET',
-        headers: {
-          accept: 'application/json',
-        },
+        headers: { accept: 'application/json' },
       });
       const data = await response.json();
-      if (response.ok && Array.isArray(data)) {
-        // Detect newly approved appointments and create notifications
-        const prevById = new Map(prevAppointmentsRef.current.map((p: any) => [String(p.id), p]));
-        data.forEach((d: any) => {
-          const prev = prevById.get(String(d.id));
-          if (prev && prev.status !== 'approved' && d.status === 'approved') {
-            const dateOnly = (d.date || '').split('T')[0];
-            const timeOnly = d.time || '';
-            const when = dateOnly ? `${dateOnly} ${timeOnly}`.trim() : '';
-            const note = {
-              id: `appt-${d.id}-${Date.now()}`,
-              title: 'Appointment approved',
-              message: `Your appointment${d.doctor_name ? ' with ' + d.doctor_name : ''}${when ? ' on ' + when : ''} is approved.`,
-              time: new Date().toISOString(),
-              read: false,
-            };
-            setNotifications(prev => [note, ...prev]);
-          }
-        });
-
-        // Save full list for later use
-        setAppointmentsList(data);
-        prevAppointmentsRef.current = data;
-
-        // Compute next appointment (earliest upcoming by date+time)
-        const toDate = (item: any) => {
-          const dateOnly = (item?.date || '').split('T')[0];
-          const timeOnly = item?.time || '';
-          if (!dateOnly) return null;
-          try {
-            return new Date(`${dateOnly}T${timeOnly}Z`);
-          } catch (e) {
-            return null;
-          }
-        };
-        const now = new Date();
-        const sorted = data
-          .map((d: any) => ({ ...d, _dt: toDate(d) }))
-          .filter((d: any) => d._dt)
-          .sort((a: any, b: any) => (a._dt as Date).getTime() - (b._dt as Date).getTime());
-        const next = sorted.find((d: any) => (d._dt as Date).getTime() >= now.getTime()) || sorted[0] || null;
-        setNextAppointment(next);
-
-        const todayKey = new Date().toISOString().split('T')[0];
-        const total = data.length;
-        const today = data.filter(item => (item?.date || '').split('T')[0] === todayKey).length;
-        const pending = data.filter(item => (item?.status || 'pending') === 'pending').length;
-        setAppointmentStats({ total, today, pending });
+      if (response.ok && data) {
+        // server returns { total, today, pending, lastAppointment }
+        setAppointmentStats({ total: data.total || 0, today: data.today || 0, pending: data.pending || 0 });
+        if (data.lastAppointment) {
+          setNextAppointment(data.lastAppointment);
+        }
       }
     } catch (error) {
-      // Keep previous stats if request fails.
+      console.warn('Failed to fetch appointment stats:', error);
     }
   };
 
@@ -160,50 +116,6 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
   const closeNotifications = () => setNotifOpen(false);
 
   useEffect(() => {
-    const fetchAppointmentStats = async () => {
-      if (!userId) return;
-      try {
-        const response = await fetch(`https://clinic-backend-s2lx.onrender.com/api/appointments/patient/${userId}`, {
-          method: 'GET',
-          headers: {
-            accept: 'application/json',
-          },
-        });
-        const data = await response.json();
-        if (response.ok && Array.isArray(data)) {
-          // Save full list for later use
-          setAppointmentsList(data);
-          // Compute next appointment (earliest upcoming by date+time)
-          const toDate = (item: any) => {
-            const dateOnly = (item?.date || '').split('T')[0];
-            const timeOnly = item?.time || '';
-            if (!dateOnly) return null;
-            try {
-              // combine date and time as UTC
-              return new Date(`${dateOnly}T${timeOnly}Z`);
-            } catch (e) {
-              return null;
-            }
-          };
-          const now = new Date();
-          const sorted = data
-            .map((d: any) => ({ ...d, _dt: toDate(d) }))
-            .filter((d: any) => d._dt)
-            .sort((a: any, b: any) => (a._dt as Date).getTime() - (b._dt as Date).getTime());
-          const next = sorted.find((d: any) => (d._dt as Date).getTime() >= now.getTime()) || sorted[0] || null;
-          setNextAppointment(next);
-
-          const todayKey = new Date().toISOString().split('T')[0];
-          const total = data.length;
-          const today = data.filter(item => (item?.date || '').split('T')[0] === todayKey).length;
-          const pending = data.filter(item => (item?.status || 'pending') === 'pending').length;
-          setAppointmentStats({ total, today, pending });
-        }
-      } catch (error) {
-        // Keep previous stats if request fails.
-      }
-    };
-
     fetchAppointmentStats();
     fetchProfileImage();
   }, [userId]);
@@ -264,7 +176,7 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
         <View style={styles.content}>
           {tab === 'home' && (
             <>
-              <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
+              <Text style={styles.sectionTitle}>lastAppointmenty</Text>
                 {nextAppointment ? (
                   <View style={styles.msg}>
                     <Text style={styles.msgTitle}>{nextAppointment.doctor_name || nextAppointment.title || 'Upcoming appointment'}</Text>
