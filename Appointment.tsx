@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert, ScrollView } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
 import Chat from './Chat';
@@ -163,7 +163,7 @@ export default function Appointment({ userId }: { userId?: number }) {
 
   return (
     <RNSSafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 16 }}>
         <View style={styles.header}>
           <Text style={styles.pageTitle}>Appointments</Text>
         </View>
@@ -335,7 +335,7 @@ export default function Appointment({ userId }: { userId?: number }) {
             <Prescription appointmentId={perceptionTarget.id} onClose={() => setPerceptionTarget(null)} />
           ) : null}
         </Modal>
-      </View>
+      </ScrollView>
     </RNSSafeAreaView>
   );
 }

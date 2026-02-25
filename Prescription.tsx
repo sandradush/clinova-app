@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, Alert, TouchableOpacity, ScrollView } from 'react-native';
 
 type PerceptionItem = {
   id: number;
@@ -50,7 +50,7 @@ export default function Prescription({ appointmentId, onClose }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.wrapper}>
+      <ScrollView contentContainerStyle={styles.wrapper}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <Text style={styles.backButtonText}>Back</Text>
@@ -80,7 +80,7 @@ export default function Prescription({ appointmentId, onClose }: Props) {
             <Text style={styles.sectionText}>{item.note}</Text>
           </View>
         ))}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

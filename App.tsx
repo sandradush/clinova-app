@@ -4,6 +4,8 @@ import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import Register from './Register';
 import Dashboard from './Dashboard';
+import ForgotPassword from './ForgotPassword';
+import ResetPassword from './ResetPassword';
 
 if (Platform.OS === 'web') {
   try { require('./web/tailwind.css'); } catch (e) { /* built CSS not found yet */ }
@@ -12,6 +14,8 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showRegister, setShowRegister] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [showReset, setShowReset] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
 
@@ -48,7 +52,29 @@ export default function App() {
   };
 
   if (showRegister) {
-    return <Register onCancel={() => setShowRegister(false)} />;
+    return (
+      <Register
+        onCancel={() => setShowRegister(false)}
+      />
+    );
+  }
+
+  if (showForgot) {
+    return (
+      <ForgotPassword
+        onDone={() => { setShowForgot(false); setShowReset(true); }}
+        onCancel={() => setShowForgot(false)}
+      />
+    );
+  }
+
+  if (showReset) {
+    return (
+      <ResetPassword
+        onDone={() => setShowReset(false)}
+        onCancel={() => setShowReset(false)}
+      />
+    );
   }
 
   if (user) {
@@ -57,7 +83,9 @@ export default function App() {
       name={user.name} 
       avatarUri={user.avatar} 
       userId={user.id}
-      onLogout={() => setUser(null)} 
+      onLogout={() => setUser(null)}
+      onProfileSave={(patient: any) => setUser((prev: any) => ({ ...(prev||{}), patient }))}
+      userPatient={user.patient}
     />;
   }
 
@@ -70,7 +98,7 @@ export default function App() {
         <View style={styles.brandHeader}>
           <View style={styles.logoContainer}>
             <View style={styles.logo}>
-              <Text style={styles.logoIcon}>🏥</Text>
+              <Text style={styles.logoMark}>CL</Text>
             </View>
             <Text style={styles.brandTitle}>Clinova</Text>
             <Text style={styles.brandSubtitle}>Your Personal Healthcare App</Text>
@@ -111,7 +139,7 @@ export default function App() {
             </TouchableOpacity>
 
             <View style={styles.row}>
-              <TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowForgot(true)}>
                 <Text style={styles.link}>Forgot password?</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowRegister(true)}>
@@ -145,14 +173,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#0EA5E9', // Sky blue
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#0b3d91', // Dark blue
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#0EA5E9',
+    marginBottom: 12,
+    shadowColor: '#0b3d91',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -161,8 +189,14 @@ const styles = StyleSheet.create({
   logoIcon: {
     fontSize: 32,
   },
+  logoMark: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+  },
   brandTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '800',
     color: '#1E293B',
     marginBottom: 4,
@@ -176,11 +210,11 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 460,
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     alignItems: 'stretch',
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
+    borderRadius: 14,
     shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.15,
@@ -207,7 +241,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
-    gap: 16,
+    gap: 12,
   },
   label: {
     fontSize: 15,
@@ -218,10 +252,10 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 2,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
     backgroundColor: '#FAFBFC',
     color: '#1E293B',
   },
@@ -232,12 +266,12 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    backgroundColor: '#0EA5E9', // Sky blue
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#0b3d91', // Dark blue
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     marginTop: 8,
-    shadowColor: '#0EA5E9',
+    shadowColor: '#0b3d91',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -252,8 +286,8 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   link: {
-    color: '#0EA5E9', // Sky blue
-    fontSize: 14,
+    color: '#0b3d91', // Dark blue
+    fontSize: 13,
     fontWeight: '600',
   },
   linkSecondary: {

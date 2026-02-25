@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, ActivityIndicator, FlatList, Pressable, ScrollView } from 'react-native';
 import Settings from './Settings';
 import Profile from './Profile';
 import Appointment from './Appointment';
@@ -11,9 +11,11 @@ type Props = {
   name?: string;
   avatarUri?: string;
   userId?: number;
+  onProfileSave?: (p: any)=>void;
+  userPatient?: any;
 };
 
-export default function Dashboard({ email, onLogout, name, avatarUri, userId }: Props) {
+export default function Dashboard({ email, onLogout, name, avatarUri, userId, onProfileSave, userPatient }: Props) {
   const [tab, setTab] = useState<'home' | 'appointments' | 'settings' | 'profile'>('home');
   const [appointmentStats, setAppointmentStats] = useState({ total: 0, today: 0, pending: 0 });
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
@@ -37,6 +39,125 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
       console.warn('Failed to fetch profile image:', error);
     }
   };
+
+  // keep previous appointments for change detection
+  const prevAppointmentsRef = useRef<any[]>([]);
+
+  const fetchAppointmentStats = async () => {
+    if (!userId) return;
+    try {
+      const response = await fetch(`https://clinic-backend-s2lx.onrender.com/api/appointments/patient/${userId}`, {
+        method: 'GET',
+        headers: {
+          accept: 'application/json',
+        },
+      });
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) {
+        // Detect newly approved appointments and create notifications
+        const prevById = new Map(prevAppointmentsRef.current.map((p: any) => [String(p.id), p]));
+        data.forEach((d: any) => {
+          const prev = prevById.get(String(d.id));
+          if (prev && prev.status !== 'approved' && d.status === 'approved') {
+            const dateOnly = (d.date || '').split('T')[0];
+            const timeOnly = d.time || '';
+            const when = dateOnly ? `${dateOnly} ${timeOnly}`.trim() : '';
+            const note = {
+              id: `appt-${d.id}-${Date.now()}`,
+              title: 'Appointment approved',
+              message: `Your appointment${d.doctor_name ? ' with ' + d.doctor_name : ''}${when ? ' on ' + when : ''} is approved.`,
+              time: new Date().toISOString(),
+              read: false,
+            };
+            setNotifications(prev => [note, ...prev]);
+          }
+        });
+
+        // Save full list for later use
+        setAppointmentsList(data);
+        prevAppointmentsRef.current = data;
+
+        // Compute next appointment (earliest upcoming by date+time)
+        const toDate = (item: any) => {
+          const dateOnly = (item?.date || '').split('T')[0];
+          const timeOnly = item?.time || '';
+          if (!dateOnly) return null;
+          try {
+            return new Date(`${dateOnly}T${timeOnly}Z`);
+          } catch (e) {
+            return null;
+          }
+        };
+        const now = new Date();
+        const sorted = data
+          .map((d: any) => ({ ...d, _dt: toDate(d) }))
+          .filter((d: any) => d._dt)
+          .sort((a: any, b: any) => (a._dt as Date).getTime() - (b._dt as Date).getTime());
+        const next = sorted.find((d: any) => (d._dt as Date).getTime() >= now.getTime()) || sorted[0] || null;
+        setNextAppointment(next);
+
+        const todayKey = new Date().toISOString().split('T')[0];
+        const total = data.length;
+        const today = data.filter(item => (item?.date || '').split('T')[0] === todayKey).length;
+        const pending = data.filter(item => (item?.status || 'pending') === 'pending').length;
+        setAppointmentStats({ total, today, pending });
+      }
+    } catch (error) {
+      // Keep previous stats if request fails.
+    }
+  };
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchAppointmentStats();
+    fetchProfileImage();
+    const interval = setInterval(fetchAppointmentStats, 30000);
+    return () => clearInterval(interval);
+  }, [userId]);
+
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const fetchNotifications = async () => {
+    if (!userId) return;
+    setNotifLoading(true);
+    try {
+      const resp = await fetch(`https://clinic-backend-s2lx.onrender.com/api/notifications/user/${userId}`, { method: 'GET', headers: { accept: 'application/json' } });
+      const data = await resp.json();
+      if (resp.ok && Array.isArray(data)) {
+        // merge server notifications with local ones (avoid duplicates)
+        setNotifications(prev => {
+          const byId = new Map<string, any>();
+          data.forEach((d: any) => byId.set(String(d.id), d));
+          prev.forEach((p: any) => { if (!byId.has(String(p.id))) byId.set(String(p.id), p); });
+          return Array.from(byId.values());
+        });
+      } else {
+        setNotifications(prev => prev);
+      }
+    } catch (e) {
+      // ignore network errors, keep existing
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const openNotifications = async () => {
+    setNotifOpen(true);
+    await fetchNotifications();
+    // mark all as read locally and best-effort on server
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    try {
+      if (userId) await fetch(`https://clinic-backend-s2lx.onrender.com/api/notifications/mark-read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }) });
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const closeNotifications = () => setNotifOpen(false);
 
   useEffect(() => {
     const fetchAppointmentStats = async () => {
@@ -89,7 +210,7 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
 
   return (
     <RNSSafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} style={styles.container}>
         {tab === 'home' && (
           <>
             <View style={styles.headerCard}>
@@ -99,7 +220,6 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
                     <Image source={{ uri: avatar }} style={styles.avatar} />
                   </TouchableOpacity>
                   <View style={styles.nameBlock}>
-                    <Text style={styles.name}>Welcome back, {displayName}</Text>
                     <Text style={styles.sub}>{email}</Text>
                     <View style={styles.statusBadge}>
                       <View style={styles.statusDot} />
@@ -107,11 +227,13 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
                     </View>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.notificationBtn}>
+                <TouchableOpacity style={styles.notificationBtn} onPress={openNotifications} accessibilityLabel="Notifications">
                   <Text style={styles.notificationIcon}>🔔</Text>
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>2</Text>
-                  </View>
+                  {unreadCount > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -144,44 +266,63 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
             <>
               <Text style={styles.sectionTitle}>Upcoming Appointment</Text>
                 {nextAppointment ? (
-                  <View style={styles.appCard}>
-                    <Text style={styles.appTitle}>{nextAppointment.doctor_name || nextAppointment.title || 'Upcoming appointment' }{nextAppointment.doctor_name ? ' — Teleconsult' : ''}</Text>
-                    <Text style={styles.appTime}>{(() => {
+                  <View style={styles.msg}>
+                    <Text style={styles.msgTitle}>{nextAppointment.doctor_name || nextAppointment.title || 'Upcoming appointment'}</Text>
+                    <Text style={styles.msgSub}>{(() => {
                       try {
                         const dateOnly = (nextAppointment.date || '').split('T')[0];
                         const timeOnly = nextAppointment.time || '';
                         const dt = new Date(`${dateOnly}T${timeOnly}Z`);
-                        return dt.toLocaleDateString() + ' • ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                      } catch (e) { return nextAppointment.datetime || '' }
+                        return dt.toLocaleDateString() + ' • ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (nextAppointment.description ? ' — ' + nextAppointment.description : '');
+                      } catch (e) { return (nextAppointment.description || '') }
                     })()}</Text>
-                    <Text style={styles.appNote}>{nextAppointment.description || ''}</Text>
                   </View>
                 ) : (
-                  <View style={styles.appCard}>
-                    <Text style={styles.appTitle}>No upcoming appointments</Text>
-                    <Text style={styles.appNote}>You have no scheduled appointments.</Text>
+                  <View style={styles.msg}>
+                    <Text style={styles.msgTitle}>No upcoming appointments</Text>
+                    <Text style={styles.msgSub}>You have no scheduled appointments.</Text>
                   </View>
                 )}
 
               
 
-              <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Recent messages</Text>
-              <View style={styles.messages}>
-                <View style={styles.msg}>
-                  <Text style={styles.msgTitle}>Lab results ready</Text>
-                  <Text style={styles.msgSub}>Your blood work is available — 2h ago</Text>
-                </View>
-                <View style={styles.msg}>
-                  <Text style={styles.msgTitle}>Appointment confirmed</Text>
-                  <Text style={styles.msgSub}>Dr. Carter confirmed your slot — yesterday</Text>
-                </View>
-              </View>
+              
             </>
           )}
           {tab === 'appointments' && <Appointment userId={userId} />}
           {tab === 'settings' && <Settings email={email} onLogout={onLogout} />}
-          {tab === 'profile' && <Profile name={name} email={email} avatarUri={profileImage} userId={userId} onBack={() => setTab('home')} onLogout={onLogout} onSave={() => { fetchProfileImage?.(); }} />}
+          {tab === 'profile' && <Profile name={name} email={email} avatarUri={profileImage} userId={userId} patient={userPatient} onBack={() => setTab('home')} onLogout={onLogout} onSave={(p:any)=>{ if (onProfileSave) onProfileSave(p); fetchProfileImage?.(); }} />}
         </View>
+
+        <Modal visible={notifOpen} animationType="slide" onRequestClose={closeNotifications} transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Notifications</Text>
+                <Pressable onPress={closeNotifications} style={styles.modalClose}>
+                  <Text style={styles.modalCloseText}>Close</Text>
+                </Pressable>
+              </View>
+              {notifLoading ? (
+                <View style={{ padding: 20 }}>
+                  <ActivityIndicator />
+                </View>
+              ) : (
+                <FlatList
+                  data={notifications}
+                  keyExtractor={(i, idx) => String(i.id || idx)}
+                  renderItem={({ item }) => (
+                    <View style={styles.notifItem}>
+                      <Text style={styles.notifTitle}>{item.title || item.message || 'Notification'}</Text>
+                      <Text style={styles.notifTime}>{item.time || item.created_at || ''}</Text>
+                    </View>
+                  )}
+                  ListEmptyComponent={<Text style={styles.emptyText}>No notifications</Text>}
+                />
+              )}
+            </View>
+          </View>
+        </Modal>
 
         <View style={styles.bottomMenu}>
           <TouchableOpacity style={[styles.tab, tab === 'home' && styles.tabActive]} onPress={() => setTab('home')}>
@@ -197,7 +338,7 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId }: 
             <Text style={[styles.tabLabel, tab === 'settings' && styles.tabLabelActive]}>Settings</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </RNSSafeAreaView>
   );
 }
@@ -541,4 +682,24 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    maxHeight: '80%',
+    padding: 12,
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B' },
+  modalClose: { padding: 6 },
+  modalCloseText: { color: '#0b3d91', fontWeight: '700' },
+  notifItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  notifTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
+  notifTime: { fontSize: 12, color: '#64748B', marginTop: 4 },
+  emptyText: { padding: 20, textAlign: 'center', color: '#64748B' },
 });

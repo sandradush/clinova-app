@@ -90,8 +90,7 @@ export default function VoiceCall({ name, onEnd }: { name?: string; onEnd: () =>
 const styles = StyleSheet.create({
   safe: { 
     flex: 1, 
-    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    backgroundColor: '#0F172A', // Fallback
+    backgroundColor: '#0F172A',
   },
   container: { 
     flex: 1, 

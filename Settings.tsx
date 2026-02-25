@@ -1,20 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
 
 export default function Settings({ email, onLogout }: { email?: string; onLogout?: () => void }) {
   const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
-  const [language, setLanguage] = useState<'english'|'kinyarwanda'|'french'>('english');
-  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
 
   return (
-    <RNSSafeAreaView style={[styles.safe, darkMode && styles.darkSafe]}>
-      <View style={[styles.container, darkMode && styles.darkContainer]}>
+    <RNSSafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={[{ flexGrow: 1 }, styles.container]}>
         <View style={styles.header}>
-          <Text style={[styles.title, darkMode && styles.darkTitle]}>Settings</Text>
+          <Text style={styles.title}>Settings</Text>
         </View>
 
         {/* <View style={styles.section}>
@@ -42,44 +39,22 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
           </View>
         </View> */}
 
-        <View style={[styles.section, darkMode && styles.darkSection]}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, darkMode && styles.darkSectionTitle]}>Appearance</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={[styles.label, darkMode && styles.darkLabel]}>Dark mode</Text>
-            <Switch 
-              value={darkMode} 
-              onValueChange={setDarkMode}
-              trackColor={{ false: '#E5E7EB', true: '#0b3d91' }}
-              thumbColor={darkMode ? '#0b3d91' : '#9CA3AF'}
-            />
-          </View>
-        </View>
+        {/* Appearance section removed per design */}
 
 
-        <View style={[styles.section, darkMode && styles.darkSection]}>
-          <TouchableOpacity style={styles.menuItem} onPress={() => setShowLanguagePicker(true)} accessibilityRole="button">
-            <View style={{ flexDirection: 'column' }}>
-              <Text style={[styles.menuItemText, darkMode && styles.darkMenuItemText]}>Language</Text>
-              <Text style={[styles.languageCurrent, darkMode && styles.darkLanguageCurrent]}>{language === 'english' ? 'English' : language === 'kinyarwanda' ? 'Kinyarwanda' : 'French'}</Text>
-            </View>
-            <Text style={styles.menuItemArrow}>›</Text>
-          </TouchableOpacity>
+        
 
-        </View>
-
-        <View style={[styles.section, darkMode && styles.darkSection]}>
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionIcon}>👥</Text>
-            <Text style={[styles.sectionTitle, darkMode && styles.darkSectionTitle]}>Account</Text>
+            <Text style={styles.sectionTitle}>Account</Text>
           </View>
           <View style={styles.accountInfo}>
-            <Text style={[styles.accountLabel, darkMode && styles.darkAccountLabel]}>Signed in as</Text>
-            <Text style={[styles.accountEmail, darkMode && styles.darkAccountEmail]}>{email || 'Not signed in'}</Text>
+            <Text style={styles.accountLabel}>Signed in as</Text>
+            <Text style={styles.accountEmail}>{email || 'Not signed in'}</Text>
           </View>
           <TouchableOpacity style={styles.menuItem} onPress={() => setShowPrivacyPolicy(true)}>
-            <Text style={[styles.menuItemText, darkMode && styles.darkMenuItemText]}>Privacy policy</Text>
+            <Text style={styles.menuItemText}>Privacy policy</Text>
             <Text style={styles.menuItemArrow}>›</Text>
           </TouchableOpacity>
       
@@ -150,51 +125,8 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
             </ScrollView>
           </RNSSafeAreaView>
         </Modal>
-        <Modal visible={showLanguagePicker} animationType="slide" transparent={false}>
-          <RNSSafeAreaView style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select language</Text>
-              <TouchableOpacity onPress={() => setShowLanguagePicker(false)}>
-                <Text style={styles.closeButton}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalContent} contentContainerStyle={{ paddingVertical: 8 }}>
-              <Text style={styles.modalSubtitle}>Choose the language you prefer for the app interface.</Text>
 
-              <TouchableOpacity style={styles.languageRow} onPress={() => { setLanguage('english'); setShowLanguagePicker(false); }} accessibilityRole="button">
-                <View style={styles.languageTextWrap}>
-                  <Text style={styles.languageOptionText}>English</Text>
-                  <Text style={styles.languageNative}>English</Text>
-                </View>
-                <View style={styles.radioOuter} accessible accessibilityRole="image" accessibilityLabel={language === 'english' ? 'Selected' : 'Not selected'}>
-                  {language === 'english' && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.languageRow} onPress={() => { setLanguage('kinyarwanda'); setShowLanguagePicker(false); }} accessibilityRole="button">
-                <View style={styles.languageTextWrap}>
-                  <Text style={styles.languageOptionText}>Kinyarwanda</Text>
-                  <Text style={styles.languageNative}>Ikinyarwanda</Text>
-                </View>
-                <View style={styles.radioOuter} accessible accessibilityRole="image" accessibilityLabel={language === 'kinyarwanda' ? 'Selected' : 'Not selected'}>
-                  {language === 'kinyarwanda' && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.languageRow} onPress={() => { setLanguage('french'); setShowLanguagePicker(false); }} accessibilityRole="button">
-                <View style={styles.languageTextWrap}>
-                  <Text style={styles.languageOptionText}>French</Text>
-                  <Text style={styles.languageNative}>Français</Text>
-                </View>
-                <View style={styles.radioOuter} accessible accessibilityRole="image" accessibilityLabel={language === 'french' ? 'Selected' : 'Not selected'}>
-                  {language === 'french' && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-
-            </ScrollView>
-          </RNSSafeAreaView>
-        </Modal>
-      </View>
+      </ScrollView>
     </RNSSafeAreaView>
   );
 }
@@ -341,67 +273,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
 
-  languageOption: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  languageOptionText: {
-    fontSize: 16,
-    color: '#374151',
-    fontWeight: '600',
-  },
-  languageSelected: {
-    color: '#0b3d91',
-    fontWeight: '700',
-    fontSize: 16,
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#64748B',
-    marginHorizontal: 12,
-    marginBottom: 12,
-  },
-  languageRow: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  languageTextWrap: {
-    flexDirection: 'column',
-  },
-  languageNative: {
-    fontSize: 12,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
-  radioOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#0b3d91',
-  },
-  languageCurrent: {
-    fontSize: 13,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  darkLanguageCurrent: { color: '#94A3B8' },
+  
   policyTitle: {
     fontSize: 20,
     fontWeight: '800',
@@ -442,14 +314,5 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: '#374151',
   },
-  darkSafe: { backgroundColor: '#1E293B' },
-  darkContainer: { backgroundColor: '#1E293B' },
-  darkTitle: { color: '#F8FAFC' },
-  darkSubtitle: { color: '#94A3B8' },
-  darkSection: { backgroundColor: '#334155' },
-  darkSectionTitle: { color: '#F8FAFC' },
-  darkLabel: { color: '#E2E8F0' },
-  darkAccountLabel: { color: '#94A3B8' },
-  darkAccountEmail: { color: '#F8FAFC' },
-  darkMenuItemText: { color: '#E2E8F0' },
+  /* dark-mode styles removed; appearance is managed elsewhere if needed */
 });

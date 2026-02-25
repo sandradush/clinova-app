@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, Alert, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, TextInput, Alert, Platform, ScrollView, KeyboardAvoidingView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
 
@@ -15,6 +15,8 @@ interface Patient {
   emergency_contact_name?: string;
   address?: string;
   image_path?: string;
+  insurance?: string;
+  insurance_other?: string;
 }
 
 export default function Profile({ name, email, avatarUri, userId, onBack, onLogout, patient, onSave }:
@@ -122,6 +124,8 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
     }
   }
 
+  
+
   return (
     <RNSSafeAreaView style={styles.safe}>
       <View style={styles.header}>
@@ -133,7 +137,8 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
+        <ScrollView contentContainerStyle={[styles.container, { flexGrow: 1 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.profileCard}>
             <Image source={{ uri: localAvatar || avatarUri || `https://i.pravatar.cc/150?u=${encodeURIComponent(email||'anon')}` }} style={styles.avatar} />
             <TouchableOpacity style={styles.changeAvatar} onPress={pickImageAndUpload}>
@@ -155,6 +160,20 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
               <TextInput style={styles.input} value={localPatient?.dob || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), dob: t })} placeholder="YYYY-MM-DD" />
             ) : (
               <Text style={styles.infoValue}>{patient?.dob ? new Date(patient.dob).toLocaleDateString() : 'Not set'}</Text>
+            )}
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Gender</Text>
+            {editing ? (
+              <View style={styles.genderRow}>
+                {['female','male','other'].map(g => (
+                  <TouchableOpacity key={g} onPress={() => setLocalPatient(prev => ({ ...(prev||{}), gender: g }))} style={[styles.chipSmall, localPatient?.gender === g && styles.chipSmallSelected, { marginLeft: 8 }]}>
+                    <Text style={[styles.chipSmallText, localPatient?.gender === g && styles.chipSmallTextSelected]}>{g[0].toUpperCase()+g.slice(1)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.infoValue}>{patient?.gender ? (patient.gender[0].toUpperCase()+patient.gender.slice(1)) : 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -187,6 +206,42 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
               <TextInput style={styles.input} value={localPatient?.address || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), address: t })} />
             ) : (
               <Text style={styles.infoValue}>{patient?.address || 'Not set'}</Text>
+            )}
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Insurance</Text>
+            {editing ? (
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <Text style={styles.smallLabel}>Select your provider</Text>
+                <View style={styles.insuranceGrid}>
+                  {['RAMA','MUTUAL','MMI','OTHER'].map(opt => {
+                    const key = opt.toLowerCase();
+                    const selected = (localPatient?.insurance || '').toLowerCase() === key;
+                    return (
+                      <TouchableOpacity key={opt} onPress={() => setLocalPatient(prev => ({ ...(prev||{}), insurance: key, insurance_other: key === 'other' ? (prev?.insurance_other||'') : undefined }))} style={[styles.insuranceCard, selected && styles.insuranceCardSelected]}>
+                        <View style={styles.insuranceLogo}>
+                          <Text style={[styles.insuranceCardText, selected && { color: '#fff' }]}>{opt === 'OTHER' ? '☁' : opt[0]}</Text>
+                        </View>
+                        <Text style={[styles.insuranceCardText, selected && { color: '#fff' }]}>{opt === 'OTHER' ? 'Other' : opt}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {(localPatient?.insurance || '').toLowerCase() === 'other' ? (
+                  <TextInput style={[styles.input, { marginTop: 10 }]} value={(localPatient as any)?.insurance_other || ''} onChangeText={t => setLocalPatient(prev => ({ ...(prev||{}), insurance_other: t } as any))} placeholder="Provider name" />
+                ) : null}
+
+                {/* policy number and expiry removed per design */}
+
+                {/* upload/preview removed per design — kept simple inputs only */}
+
+              </View>
+            ) : (
+              <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                <Text style={styles.infoValue}>{patient?.insurance ? (patient.insurance === 'others' ? (patient.insurance_other || 'Other') : patient.insurance) : 'Not set'}</Text>
+                {patient?.insurance_policy_number ? <Text style={{ color: '#64748B', fontSize: 12 }}>{patient.insurance_policy_number}</Text> : null}
+              </View>
             )}
           </View>
         </View>
@@ -237,7 +292,8 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
         <TouchableOpacity style={styles.logout} onPress={() => onLogout && onLogout()}>
           <Text style={styles.logoutText}>Sign out</Text>
         </TouchableOpacity>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </RNSSafeAreaView>
   );
 }
@@ -251,8 +307,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
@@ -264,23 +320,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   backIcon: {
-    fontSize: 18,
+    fontSize: 14,
     color: '#1E293B',
     marginRight: 4,
     fontWeight: '600',
   },
   backText: {
     color: '#1E293B',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   headerTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#1E293B',
   },
   headerSpacer: {
-    width: 60, // Balance the back button
+    width: 48, // Balance the back button
   },
   container: {
     flex: 1,
@@ -361,6 +417,18 @@ const styles = StyleSheet.create({
     color: '#1E293B',
     marginBottom: 16,
   },
+  chipSmall: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1, borderColor: '#E5E7EB', backgroundColor: 'transparent' },
+  chipSmallSelected: { backgroundColor: '#0b3d91', borderColor: '#0b3d91' },
+  chipSmallText: { color: '#1E293B', fontWeight: '600' },
+  chipSmallTextSelected: { color: '#FFFFFF' },
+  insuranceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end' },
+  insuranceCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E6EEF9', backgroundColor: '#FFFFFF', marginLeft: 8 },
+  insuranceCardSelected: { backgroundColor: '#0b3d91', borderColor: '#0b3d91' },
+  insuranceLogo: { width: 34, height: 34, borderRadius: 8, backgroundColor: '#EEF2FF', alignItems: 'center', justifyContent: 'center', marginRight: 8 },
+  insuranceCardText: { color: '#0b3d91', fontWeight: '700' },
+  smallLabel: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  genderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  // uploadButton and insurancePreview removed — upload feature removed
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
