@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert, ScrollView, StatusBar } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 import Chat from './Chat';
 import Prescription from './Prescription';
 import VideoCall from './VideoCall';
@@ -16,7 +16,7 @@ type AppointmentItem = {
   doctor_id?: string | number | null;
 };
 
-export default function Appointment({ userId }: { userId?: number }) {
+export default function Appointment({ userId, onBack }: { userId?: number; onBack?: () => void }) {
   const [appointments, setAppointments] = useState<AppointmentItem[]>([
     {
       id: '1',
@@ -43,8 +43,30 @@ export default function Appointment({ userId }: { userId?: number }) {
     return `${formattedDate} • ${formattedTime}`;
   };
 
-  const formatDate = (value: Date) => value.toISOString().split('T')[0];
-  const formatTime = (value: Date) => value.toISOString().split('T')[1];
+  const TZ = 'Africa/Kigali';
+
+  const formatDate = (value: Date) => {
+    try {
+      // use en-CA to get YYYY-MM-DD format
+      return new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(value);
+    } catch (e) {
+      return value.toISOString().split('T')[0];
+    }
+  };
+
+  const formatTime = (value: Date) => {
+    try {
+      return new Intl.DateTimeFormat('en-GB', {
+        timeZone: TZ,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(value);
+    } catch (e) {
+      return value.toISOString().split('T')[1];
+    }
+  };
 
   const handleDateChange = (event: DateTimePickerEvent, selected?: Date) => {
     if (Platform.OS !== 'ios') {
@@ -164,8 +186,15 @@ export default function Appointment({ userId }: { userId?: number }) {
   return (
     <RNSSafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, padding: 16 }}>
-        <View style={styles.header}>
-          <Text style={styles.pageTitle}>Appointments</Text>
+        <View style={styles.headerContainer}>
+          <View style={styles.headerWithDismiss}>
+            <Text style={styles.pageTitle}>Appointments</Text>
+            {typeof onBack === 'function' ? (
+              <TouchableOpacity onPress={onBack} style={styles.dismissBtn} accessibilityRole="button" accessibilityLabel="Close appointments">
+                <Text style={styles.dismissText}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         {loadingAppointments ? (
@@ -362,6 +391,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#64748B',
     fontWeight: '500',
+  },
+  headerContainer: {
+    position: 'relative',
+    marginBottom: 18,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  headerWithDismiss: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dismissBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dismissText: {
+    color: '#64748B',
+    fontSize: 18,
+    fontWeight: '700',
   },
   loadingCard: {
     backgroundColor: '#FFFFFF',

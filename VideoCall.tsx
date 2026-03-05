@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 
 export default function VideoCall({ name, onEnd, patientId, doctorId }: { name?: string; onEnd: () => void; patientId?: string | number; doctorId?: string | number }) {
   const [seconds, setSeconds] = useState(0);

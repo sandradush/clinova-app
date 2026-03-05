@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import Register from './Register';
 import Dashboard from './Dashboard';
+import Payment from './Payment';
 import ForgotPassword from './ForgotPassword';
 import ResetPassword from './ResetPassword';
 
@@ -18,6 +19,8 @@ export default function App() {
   const [showReset, setShowReset] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentAppointment, setPaymentAppointment] = useState<any | null>(null);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -78,6 +81,17 @@ export default function App() {
   }
 
   if (user) {
+    if (showPayment && paymentAppointment) {
+      return (
+        <RNSSafeAreaView style={{ flex: 1 }}>
+          <TouchableOpacity onPress={() => { setShowPayment(false); setPaymentAppointment(null); }} style={{ padding: 12, backgroundColor: '#fff' }}>
+            <Text style={{ color: '#0b3d91', fontWeight: '700' }}>← Back</Text>
+          </TouchableOpacity>
+          <Payment route={{ params: { appointment: paymentAppointment } }} />
+        </RNSSafeAreaView>
+      );
+    }
+
     return <Dashboard 
       email={user.email} 
       name={user.name} 
@@ -86,6 +100,7 @@ export default function App() {
       onLogout={() => setUser(null)}
       onProfileSave={(patient: any) => setUser((prev: any) => ({ ...(prev||{}), patient }))}
       userPatient={user.patient}
+      onOpenPayment={(appt: any) => { setPaymentAppointment(appt || { id: 'APPT-EX', patientName: user.name || user.email, fee: 3000, scheduled: new Date().toISOString() }); setShowPayment(true); }}
     />;
   }
 

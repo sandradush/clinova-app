@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Platform, StatusBar } from 'react-native';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 
-export default function Settings({ email, onLogout }: { email?: string; onLogout?: () => void }) {
+export default function Settings({ email, onLogout, onBack }: { email?: string; onLogout?: () => void; onBack?: () => void }) {
   const [notifications, setNotifications] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
@@ -10,8 +10,15 @@ export default function Settings({ email, onLogout }: { email?: string; onLogout
   return (
     <RNSSafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={[{ flexGrow: 1 }, styles.container]}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
+        <View style={styles.headerContainer}>
+          <View style={styles.headerWithDismiss}>
+            <Text style={styles.title}>Settings</Text>
+            {typeof onBack === 'function' ? (
+              <TouchableOpacity onPress={onBack} style={styles.dismissBtn} accessibilityRole="button" accessibilityLabel="Close settings">
+                <Text style={styles.dismissText}>✕</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
 
         {/* <View style={styles.section}>
@@ -271,6 +278,27 @@ const styles = StyleSheet.create({
   modalContent: {
     flex: 1,
     padding: 16,
+  },
+
+  headerContainer: {
+    position: 'relative',
+    marginBottom: 18,
+    paddingTop: 4,
+    paddingBottom: 4,
+  },
+  headerWithDismiss: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dismissBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dismissText: {
+    color: '#64748B',
+    fontSize: 18,
+    fontWeight: '700',
   },
 
   

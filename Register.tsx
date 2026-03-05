@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import React, { useState, useMemo } from 'react';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 
@@ -16,6 +16,7 @@ export default function Register({ onCancel }: Props) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
@@ -25,6 +26,10 @@ export default function Register({ onCancel }: Props) {
     }
     if (password !== confirmPassword) {
       Alert.alert('Password mismatch', 'Passwords do not match.');
+      return;
+    }
+    if (!termsAccepted) {
+      Alert.alert('Terms', 'Please accept terms and conditions to continue.');
       return;
     }
 
@@ -61,16 +66,29 @@ export default function Register({ onCancel }: Props) {
     }
   };
 
+  const passwordStrength = useMemo(() => {
+    let score = 0;
+    if (password.length >= 8) score += 1;
+    if (/[A-Z]/.test(password)) score += 1;
+    if (/[0-9]/.test(password)) score += 1;
+    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+    return score; // 0..4
+  }, [password]);
+
+  const strengthLabel = ['Weak', 'Fair', 'Good', 'Strong', 'Excellent'][passwordStrength];
+
   return (
     <RNSSafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.card} keyboardShouldPersistTaps="handled">
-          <View style={{ alignItems: 'center', marginBottom: 8 }}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.card} keyboardShouldPersistTaps="handled">
+          <View style={styles.headerRow}>
             <View style={styles.logo}><Text style={styles.logoMark}>CL</Text></View>
+            <Text style={styles.cardTitle}>Create account</Text>
           </View>
-          <Text style={styles.cardTitle}>Create account</Text>
 
           <View style={styles.form}>
+            
+
             <Text style={styles.label}>Full name</Text>
             <TextInput value={fullName} onChangeText={setFullName} placeholder="First Last" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
 
@@ -85,11 +103,16 @@ export default function Register({ onCancel }: Props) {
               </Picker>
             </View>
 
-            <Text style={styles.label}>Phone</Text>
-            <TextInput value={phone} onChangeText={setPhone} placeholder="+1 555 555 5555" keyboardType="phone-pad" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput value={email} onChangeText={setEmail} placeholder="you@company.com" keyboardType="email-address" autoCapitalize="none" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
+            <View style={styles.twoCol}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.label}>Phone</Text>
+                <TextInput value={phone} onChangeText={setPhone} placeholder="+250 78 123 4567" keyboardType="phone-pad" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Email</Text>
+                <TextInput value={email} onChangeText={setEmail} placeholder="you@company.com" keyboardType="email-address" autoCapitalize="none" style={[styles.input, styles.inputFilled]} placeholderTextColor="#9CA3AF" />
+              </View>
+            </View>
 
             <Text style={styles.label}>Password</Text>
             <View style={styles.passwordContainer}>
@@ -107,6 +130,11 @@ export default function Register({ onCancel }: Props) {
               >
                 <Text style={styles.eyeText}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.pwStrengthRow}>
+              <View style={[styles.pwBar, { width: `${(passwordStrength / 4) * 100}%`, backgroundColor: passwordStrength >= 3 ? '#16a34a' : '#f97316' }]} />
+              <Text style={styles.pwLabel}>{password ? strengthLabel : ''}</Text>
             </View>
 
             <Text style={styles.label}>Confirm password</Text>
@@ -127,8 +155,13 @@ export default function Register({ onCancel }: Props) {
               </TouchableOpacity>
             </View>
 
+            <TouchableOpacity style={styles.termsRow} onPress={() => setTermsAccepted(t => !t)}>
+              <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>{termsAccepted ? <Text style={styles.checkboxTick}>✓</Text> : null}</View>
+              <Text style={styles.termsText}>I accept the Terms & Conditions and Privacy Policy</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity onPress={handleRegister} style={[styles.button, loading && styles.buttonDisabled]} activeOpacity={0.9} disabled={loading}>
-              <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Register'}</Text>
+              <Text style={styles.buttonText}>{loading ? 'Creating Account...' : 'Create Account'}</Text>
             </TouchableOpacity>
 
             <View style={styles.row}>
@@ -155,15 +188,17 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
+    paddingHorizontal: 16,
+    paddingTop: 18,
     backgroundColor: '#F0F9FF',
   },
   card: {
     width: '100%',
-    maxWidth: 460,
-    paddingVertical: 18,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    flexGrow: 1,
     alignItems: 'stretch',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -230,4 +265,16 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
+  scroll: { flex: 1, width: '100%' },
+  headerRow: { alignItems: 'center', marginBottom: 10, flexDirection: 'row', gap: 12, paddingHorizontal: 16 },
+  
+  twoCol: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  pwStrengthRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  pwBar: { height: 6, borderRadius: 6, backgroundColor: '#E5E7EB', flex: 1 },
+  pwLabel: { fontSize: 12, color: '#6B7280', marginLeft: 8 },
+  termsRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
+  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 8, justifyContent: 'center', alignItems: 'center' },
+  checkboxChecked: { backgroundColor: '#0b84ff', borderColor: '#0b84ff' },
+  checkboxTick: { color: '#fff', fontWeight: '700' },
+  termsText: { color: '#475569', fontSize: 13, flex: 1 },
 });

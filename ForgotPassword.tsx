@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 
 export default function ForgotPassword({ onDone, onCancel }:{ onDone?: ()=>void; onCancel?: ()=>void }){
   const [email, setEmail] = useState('');

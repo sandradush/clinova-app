@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context/lib/commonjs/SafeAreaView';
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, ActivityIndicator, FlatList, Pressable, ScrollView } from 'react-native';
 import Settings from './Settings';
 import Profile from './Profile';
@@ -13,10 +13,12 @@ type Props = {
   userId?: number;
   onProfileSave?: (p: any)=>void;
   userPatient?: any;
+  onOpenPayment?: (appt: any) => void;
 };
 
-export default function Dashboard({ email, onLogout, name, avatarUri, userId, onProfileSave, userPatient }: Props) {
-  const [tab, setTab] = useState<'home' | 'appointments' | 'settings' | 'profile'>('home');
+export default function Dashboard(props: Props) {
+  const { email, onLogout, name, avatarUri, userId, onProfileSave, userPatient, onOpenPayment } = props;
+  const [tab, setTab] = useState<'home' | 'appointment' | 'setting' | 'profile'>('home');
   const [appointmentStats, setAppointmentStats] = useState({ total: 0, today: 0, pending: 0 });
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
   const [nextAppointment, setNextAppointment] = useState<any | null>(null);
@@ -140,7 +142,7 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
                   </View>
                 </View>
                 <TouchableOpacity style={styles.notificationBtn} onPress={openNotifications} accessibilityLabel="Notifications">
-                  <Text style={styles.notificationIcon}>🔔</Text>
+                  <Text style={styles.notificationIconSmall}>🔔</Text>
                   {unreadCount > 0 && (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
@@ -176,7 +178,7 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
         <View style={styles.content}>
           {tab === 'home' && (
             <>
-              <Text style={styles.sectionTitle}>lastAppointmenty</Text>
+              <Text style={styles.sectionTitle}>Last Appointment</Text>
                 {nextAppointment ? (
                   <View style={styles.msg}>
                     <Text style={styles.msgTitle}>{nextAppointment.doctor_name || nextAppointment.title || 'Upcoming appointment'}</Text>
@@ -188,6 +190,7 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
                         return dt.toLocaleDateString() + ' • ' + dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (nextAppointment.description ? ' — ' + nextAppointment.description : '');
                       } catch (e) { return (nextAppointment.description || '') }
                     })()}</Text>
+                      {/* Payment handled on separate Payment page */}
                   </View>
                 ) : (
                   <View style={styles.msg}>
@@ -201,8 +204,8 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
               
             </>
           )}
-          {tab === 'appointments' && <Appointment userId={userId} />}
-          {tab === 'settings' && <Settings email={email} onLogout={onLogout} />}
+          {tab === 'appointment' && <Appointment userId={userId} onBack={() => setTab('home')} />}
+          {tab === 'setting' && <Settings email={email} onLogout={onLogout} onBack={() => setTab('home')} />}
           {tab === 'profile' && <Profile name={name} email={email} avatarUri={profileImage} userId={userId} patient={userPatient} onBack={() => setTab('home')} onLogout={onLogout} onSave={(p:any)=>{ if (onProfileSave) onProfileSave(p); fetchProfileImage?.(); }} />}
         </View>
 
@@ -236,20 +239,31 @@ export default function Dashboard({ email, onLogout, name, avatarUri, userId, on
           </View>
         </Modal>
 
-        <View style={styles.bottomMenu}>
-          <TouchableOpacity style={[styles.tab, tab === 'home' && styles.tabActive]} onPress={() => setTab('home')}>
-            
-            <Text style={[styles.tabLabel, tab === 'home' && styles.tabLabelActive]}>Home</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, tab === 'appointments' && styles.tabActive]} onPress={() => setTab('appointments')}>
+        <View style={styles.floatingBarWrap} pointerEvents="box-none">
+            <View style={styles.floatingBar}>
+              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('home')} accessibilityRole="button" accessibilityLabel="Home">
+                <Text style={[styles.floatingLabel, tab === 'home' && styles.floatingLabelActive]}>Home</Text>
+              </TouchableOpacity>
 
-            <Text style={[styles.tabLabel, tab === 'appointments' && styles.tabLabelActive]}>Appointments</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tab, tab === 'settings' && styles.tabActive]} onPress={() => setTab('settings')}>
-            
-            <Text style={[styles.tabLabel, tab === 'settings' && styles.tabLabelActive]}>Settings</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('appointment')} accessibilityRole="button" accessibilityLabel="Appointment">
+                <Text style={[styles.floatingLabel, tab === 'appointment' && styles.floatingLabelActive]}>Appointment</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.paymentAction} onPress={() => { if (typeof onOpenPayment === 'function') onOpenPayment(null); }} accessibilityRole="button" accessibilityLabel="Payment">
+                <View style={styles.paymentInner}>
+                  <Text style={styles.paymentIcon}>💳</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('profile')} accessibilityRole="button" accessibilityLabel="Profile">
+                <Text style={[styles.floatingLabel, tab === 'profile' && styles.floatingLabelActive]}>Profile</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('setting')} accessibilityRole="button" accessibilityLabel="Setting">
+                <Text style={[styles.floatingLabel, tab === 'setting' && styles.floatingLabelActive]}>Setting</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
       </ScrollView>
     </RNSSafeAreaView>
   );
@@ -335,6 +349,15 @@ const styles = StyleSheet.create({
   },
   notificationIcon: {
     fontSize: 24,
+  },
+  notificationLabel: {
+    color: '#0b3d91',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  notificationIconSmall: {
+    fontSize: 18,
+    color: '#000000',
   },
   notificationBadge: {
     position: 'absolute',
@@ -536,6 +559,100 @@ const styles = StyleSheet.create({
   },
   tabLabelActive: {
     color: '#FFFFFF',
+  },
+  floatingBarWrap: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    bottom: 12,
+    alignItems: 'center',
+    zIndex: 40,
+    pointerEvents: 'box-none',
+  },
+  floatingBar: {
+    width: '100%',
+    maxWidth: 980,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#0b3d91',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  floatingTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    marginHorizontal: 4,
+  },
+  floatingIcon: {
+    fontSize: 18,
+    marginBottom: 4,
+    color: '#64748B',
+  },
+  floatingIconActive: {
+    color: '#0b3d91',
+  },
+  floatingLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  floatingLabelActive: {
+    color: '#0b3d91',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  floatingLabelHidden: {
+    height: 0,
+    color: 'transparent',
+    marginTop: 0,
+    opacity: 0,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+    backgroundColor: 'transparent',
+  },
+  activeDotVisible: {
+    backgroundColor: '#0b3d91',
+  },
+  paymentAction: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -28,
+    shadowColor: '#0b3d91',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  paymentInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0b3d91',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: 'rgba(11,61,145,0.12)',
+  },
+  paymentIcon: {
+    color: '#FFFFFF',
+    fontSize: 22,
   },
   sectionTitle: { 
     fontSize: 16, 
