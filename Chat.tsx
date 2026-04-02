@@ -16,84 +16,84 @@ export default function Chat({ onClose, name, patientId, doctorId }: { onClose: 
     listRef.current?.scrollToEnd({ animated: false });
   }, []);
 
+  const doctorWsRef = useRef<WebSocket | null>(null);
+
+  const parseAndAppend = (ev: MessageEvent) => {
+    const raw = typeof ev.data === 'string' ? ev.data : '';
+    try {
+      const data = JSON.parse(raw);
+      if (data && data.content) {
+        const isMe = String(data.sender) === String(patientId);
+        // Skip echo of our own sent messages (already added locally)
+        if (isMe && pendingSentRef.current.has(String(data.content))) {
+          pendingSentRef.current.delete(String(data.content));
+          return;
+        }
+        setMessages(prev => [...prev, { id: String(Date.now()), text: String(data.content), me: isMe }]);
+        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+        return;
+      }
+    } catch (e) {}
+
+    if (raw) {
+      const m = raw.match(/^\s*(\d+)\s*:\s*([\s\S]+)$/);
+      if (m) {
+        const isMe = String(m[1]) === String(patientId);
+        if (isMe && pendingSentRef.current.has(String(m[2]))) {
+          pendingSentRef.current.delete(String(m[2]));
+          return;
+        }
+        setMessages(prev => [...prev, { id: String(Date.now()), text: String(m[2]), me: isMe }]);
+      } else {
+        setMessages(prev => [...prev, { id: String(Date.now()), text: raw, me: false }]);
+      }
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  };
+
   useEffect(() => {
     if (!patientId) return;
-    try {
-      const url = `wss://chat.mababa.app/ws/${patientId}`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
 
-      ws.onopen = () => {
-        // presence or ready handling if needed
-      };
+    // Connect to patient's own channel to receive messages sent to patient
+    const openWs = (channel: string | number, ref: React.MutableRefObject<WebSocket | null>) => {
+      try {
+        const ws = new WebSocket(`wss://chat.mababa.app/ws/${channel}`);
+        ref.current = ws;
+        ws.onmessage = parseAndAppend;
+        ws.onerror = () => {};
+        ws.onclose = () => {};
+      } catch (e) {}
+    };
 
-      ws.onmessage = ev => {
-        const raw = typeof ev.data === 'string' ? ev.data : '';
-        try {
-          const data = JSON.parse(ev.data);
-          if (data && data.content) {
-            const m: Msg = { id: String(Date.now()), text: String(data.content), me: String(data.sender) === String(patientId) };
-            setMessages(prev => [...prev, m]);
-            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-            return;
-          }
-        } catch (e) {
-          // not JSON, fallthrough to parse plain string
-        }
+    openWs(patientId, wsRef);
+    // Also listen on doctor's channel so we receive messages the doctor sends
+    if (doctorId) openWs(doctorId, doctorWsRef);
 
-        if (raw) {
-          // handle format like: "34: hello there" where 34 is doctor_id
-          const m = raw.match(/^\s*(\d+)\s*:\s*([\s\S]+)$/);
-          if (m) {
-            const senderId = m[1];
-            const content = m[2];
-            const msg: Msg = { id: String(Date.now()), text: String(content), me: String(senderId) === String(patientId) };
-            setMessages(prev => [...prev, msg]);
-            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-            return;
-          }
+    return () => {
+      try { wsRef.current?.close(); } catch (e) {}
+      try { doctorWsRef.current?.close(); } catch (e) {}
+      wsRef.current = null;
+      doctorWsRef.current = null;
+    };
+  }, [patientId, doctorId]);
 
-          // fallback: append raw text
-          setMessages(prev => [...prev, { id: String(Date.now()), text: raw }]);
-          setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-      };
-
-      ws.onerror = () => {};
-      ws.onclose = () => {};
-
-      return () => {
-        try { ws.close(); } catch (e) {}
-        wsRef.current = null;
-      };
-    } catch (e) {}
-  }, [patientId]);
+  const pendingSentRef = useRef<Set<string>>(new Set());
 
   const send = () => {
     if (!text.trim()) return;
-    const m: Msg = { id: String(Date.now()), text: text.trim(), me: true };
-    setMessages(prev => [...prev, m]);
-    const payload = {
-      sender: String(patientId),
-      receiver: String(doctorId),
-      content: text.trim(),
-    };
+    const content = text.trim();
+    const tempId = String(Date.now());
+    // Track this content so we can ignore the echo from our own WS channel
+    pendingSentRef.current.add(content);
+    setMessages(prev => [...prev, { id: tempId, text: content, me: true }]);
+    const payload = { sender: String(patientId), receiver: String(doctorId), content };
     setText('');
     try {
       const ws = wsRef.current;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(payload));
-      } else {
-        // fallback: simulate doctor reply when websocket unavailable
-        setTimeout(() => {
-          setMessages(prev => [...prev, { id: String(Date.now()+1), text: 'Thanks — I will review and get back to you.' }]);
-        }, 800);
       }
-    } catch (e) {
-      setTimeout(() => {
-        setMessages(prev => [...prev, { id: String(Date.now()+1), text: 'Thanks — I will review and get back to you.' }]);
-      }, 800);
-    }
+    } catch (e) {}
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 200);
   };
 
@@ -198,7 +198,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
+    backgroundColor: '#001e3c',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -225,12 +226,12 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#041430',
     marginRight: 4,
   },
   statusText: {
     fontSize: 12,
-    color: '#0b3d91',
+    color: '#001e3c',
     fontWeight: '500',
   },
   closeBtn: {
@@ -262,7 +263,8 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
+    backgroundColor: '#001e3c',
     justifyContent: 'center',
     alignItems: 'center',
     marginHorizontal: 8,
@@ -284,7 +286,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   myBubble: {
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#041430',
     borderBottomRightRadius: 6,
   },
   theirBubble: {
@@ -351,7 +353,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sendBtnActive: {
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#041430',
   },
   sendBtnInactive: {
     backgroundColor: '#E2E8F0',

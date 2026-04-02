@@ -1,18 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Platform, StatusBar } from 'react-native';
-import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native'; 
+import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context'; 
+import { useLang, LangCode, translations } from './i18n'; 
 
 export default function Settings({ email, onLogout, onBack }: { email?: string; onLogout?: () => void; onBack?: () => void }) {
-  const [notifications, setNotifications] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const { t, lang, setLang } = useLang();
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [showLangPicker, setShowLangPicker] = useState(false);
+
+  const LANGUAGES: { code: LangCode; label: string; native: string }[] = [
+    { code: 'en', label: 'English',    native: 'English' },
+    { code: 'fr', label: 'French',     native: 'Français' },
+    { code: 'rw', label: 'Kinyarwanda', native: 'Kinyarwanda' },
+  ];
+  const currentLang = LANGUAGES.find(l => l.code === lang);
 
   return (
     <RNSSafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={[{ flexGrow: 1 }, styles.container]}>
         <View style={styles.headerContainer}>
           <View style={styles.headerWithDismiss}>
-            <Text style={styles.title}>Settings</Text>
+            <Text style={styles.title}>{t.settingsTitle}</Text>
             {typeof onBack === 'function' ? (
               <TouchableOpacity onPress={onBack} style={styles.dismissBtn} accessibilityRole="button" accessibilityLabel="Close settings">
                 <Text style={styles.dismissText}>✕</Text>
@@ -31,8 +39,8 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
             <Switch 
               value={notifications} 
               onValueChange={setNotifications}
-              trackColor={{ false: '#E5E7EB', true: '#0b3d91' }}
-              thumbColor={notifications ? '#0b3d91' : '#9CA3AF'}
+              trackColor={{ false: '#E5E7EB', true: '#041430' }}
+              thumbColor={notifications ? '#041430' : '#9CA3AF'}
             />
           </View>
           <View style={styles.row}>
@@ -40,8 +48,8 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
             <Switch 
               value={soundEnabled} 
               onValueChange={setSoundEnabled}
-              trackColor={{ false: '#E5E7EB', true: '#0b3d91' }}
-              thumbColor={soundEnabled ? '#0b3d91' : '#9CA3AF'}
+              trackColor={{ false: '#E5E7EB', true: '#041430' }}
+              thumbColor={soundEnabled ? '#041430' : '#9CA3AF'}
             />
           </View>
         </View> */}
@@ -52,24 +60,51 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
         
 
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>👥</Text>
-            <Text style={styles.sectionTitle}>Account</Text>
-          </View>
+          <Text style={styles.sectionTitle}>{t.language}</Text>
+          <TouchableOpacity style={styles.menuItem} onPress={() => setShowLangPicker(true)}>
+            <Text style={styles.menuItemText}>{currentLang?.native}</Text>
+            <Text style={styles.menuItemArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>{t.account}</Text>
           <View style={styles.accountInfo}>
-            <Text style={styles.accountLabel}>Signed in as</Text>
+            <Text style={styles.accountLabel}>{t.signedInAs}</Text>
             <Text style={styles.accountEmail}>{email || 'Not signed in'}</Text>
           </View>
           <TouchableOpacity style={styles.menuItem} onPress={() => setShowPrivacyPolicy(true)}>
-            <Text style={styles.menuItemText}>Privacy policy</Text>
+            <Text style={styles.menuItemText}>{t.privacyPolicy}</Text>
             <Text style={styles.menuItemArrow}>›</Text>
           </TouchableOpacity>
       
         </View>
 
         <TouchableOpacity style={styles.logout} onPress={() => onLogout && onLogout()}>
-          <Text style={styles.logoutText}>Sign out</Text>
+          <Text style={styles.logoutText}>{t.signOut}</Text>
         </TouchableOpacity>
+
+        {/* Language Picker Modal */}
+        <Modal visible={showLangPicker} animationType="slide" transparent>
+          <View style={styles.langOverlay}>
+            <View style={styles.langSheet}>
+              <Text style={styles.langSheetTitle}>{t.selectLanguage}</Text>
+              {LANGUAGES.map(l => (
+                <TouchableOpacity
+                  key={l.code}
+                  style={[styles.langOption, lang === l.code && styles.langOptionActive]}
+                  onPress={() => { setLang(l.code); setShowLangPicker(false); }}
+                >
+                  <Text style={[styles.langOptionText, lang === l.code && styles.langOptionTextActive]}>{l.native}</Text>
+                  {lang === l.code && <Text style={styles.langCheck}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.langCancel} onPress={() => setShowLangPicker(false)}>
+                <Text style={styles.langCancelText}>{t.close}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
         <Modal visible={showPrivacyPolicy} animationType="slide">
           <RNSSafeAreaView style={styles.modalContainer}>
@@ -80,7 +115,7 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalContent}>
-              <Text style={styles.policyTitle}>Clinova Privacy Policy</Text>
+              <Text style={styles.policyTitle}>Cura Privacy Policy</Text>
               
               <View style={styles.policySection}>
                 <Text style={styles.sectionNumber}>1.</Text>
@@ -126,7 +161,7 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
                 <Text style={styles.sectionNumber}>6.</Text>
                 <View style={styles.sectionContent}>
                   <Text style={styles.sectionHeading}>Contact Us</Text>
-                  <Text style={styles.sectionText}>For privacy concerns, contact us at privacy@clinova.com</Text>
+                  <Text style={styles.sectionText}>For privacy concerns, contact us at privacy@cura.com</Text>
                 </View>
               </View>
             </ScrollView>
@@ -171,6 +206,66 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
+  },
+  langOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  langSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 36,
+  },
+  langSheetTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#001e3c',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  langOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: '#F8FAFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  langOptionActive: {
+    backgroundColor: '#001e3c', 
+    shadowColor: '#001e3c',
+  },
+  langOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  langOptionTextActive: {
+    color: '#FFFFFF',
+  },
+  langCheck: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  langCancel: {
+    marginTop: 8,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  langCancelText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#64748B',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -231,17 +326,17 @@ const styles = StyleSheet.create({
   },
   accountEmail: {
     fontSize: 16,
-    color: '#1E293B',
+    color: '#040627',
     fontWeight: '600',
   },
   logout: { 
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#EF4444', 
+    backgroundColor: '#040627', 
     borderRadius: 10,
     paddingVertical: 12,
-    shadowColor: '#EF4444',
+    shadowColor: '#040627',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28,
     shadowRadius: 6,
@@ -324,7 +419,7 @@ const styles = StyleSheet.create({
   sectionNumber: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0b3d91',
+    color: '#001e3c',
     marginRight: 12,
     marginTop: 2,
   },

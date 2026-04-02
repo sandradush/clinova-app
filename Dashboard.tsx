@@ -3,7 +3,9 @@ import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context'
 import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, ActivityIndicator, FlatList, Pressable, ScrollView } from 'react-native';
 import Settings from './Settings';
 import Profile from './Profile';
+import { useLang } from './i18n';
 import Appointment from './Appointment';
+import Prescription from './Prescription';
 
 type Props = {
   email: string;
@@ -18,7 +20,8 @@ type Props = {
 
 export default function Dashboard(props: Props) {
   const { email, onLogout, name, avatarUri, userId, onProfileSave, userPatient, onOpenPayment } = props;
-  const [tab, setTab] = useState<'home' | 'appointment' | 'setting' | 'profile'>('home');
+  const { t } = useLang();
+  const [tab, setTab] = useState<'home' | 'appointment' | 'setting' | 'profile' | 'prescription'>('home');
   const [appointmentStats, setAppointmentStats] = useState({ total: 0, today: 0, pending: 0 });
   const [appointmentsList, setAppointmentsList] = useState<any[]>([]);
   const [nextAppointment, setNextAppointment] = useState<any | null>(null);
@@ -207,6 +210,7 @@ export default function Dashboard(props: Props) {
           {tab === 'appointment' && <Appointment userId={userId} onBack={() => setTab('home')} />}
           {tab === 'setting' && <Settings email={email} onLogout={onLogout} onBack={() => setTab('home')} />}
           {tab === 'profile' && <Profile name={name} email={email} avatarUri={profileImage} userId={userId} patient={userPatient} onBack={() => setTab('home')} onLogout={onLogout} onSave={(p:any)=>{ if (onProfileSave) onProfileSave(p); fetchProfileImage?.(); }} />}
+          {tab === 'prescription' && <Prescription onClose={() => setTab('home')} />}
         </View>
 
         <Modal visible={notifOpen} animationType="slide" onRequestClose={closeNotifications} transparent>
@@ -239,31 +243,27 @@ export default function Dashboard(props: Props) {
           </View>
         </Modal>
 
-        <View style={styles.floatingBarWrap} pointerEvents="box-none">
-            <View style={styles.floatingBar}>
-              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('home')} accessibilityRole="button" accessibilityLabel="Home">
-                <Text style={[styles.floatingLabel, tab === 'home' && styles.floatingLabelActive]}>Home</Text>
+        <View style={styles.navBar}>
+          {[
+            { key: 'home',         label: t.home },
+            { key: 'appointment',  label: t.appointments },
+            { key: 'prescription', label: t.prescription },
+            { key: 'setting',      label: t.settings },
+          ].map(item => {
+            const active = tab === item.key;
+            return (
+              <TouchableOpacity
+                key={item.key}
+                style={styles.navItem}
+                onPress={() => setTab(item.key as any)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.navLabel, active && styles.navLabelActive]}>{item.label}</Text>
+                {active && <View style={styles.navDot} />}
               </TouchableOpacity>
-
-              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('appointment')} accessibilityRole="button" accessibilityLabel="Appointment">
-                <Text style={[styles.floatingLabel, tab === 'appointment' && styles.floatingLabelActive]}>Appointment</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.paymentAction} onPress={() => { if (typeof onOpenPayment === 'function') onOpenPayment(null); }} accessibilityRole="button" accessibilityLabel="Payment">
-                <View style={styles.paymentInner}>
-                  <Text style={styles.paymentIcon}>💳</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('profile')} accessibilityRole="button" accessibilityLabel="Profile">
-                <Text style={[styles.floatingLabel, tab === 'profile' && styles.floatingLabelActive]}>Profile</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.floatingTab} onPress={() => setTab('setting')} accessibilityRole="button" accessibilityLabel="Setting">
-                <Text style={[styles.floatingLabel, tab === 'setting' && styles.floatingLabelActive]}>Setting</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+            );
+          })}
+        </View>
       </ScrollView>
     </RNSSafeAreaView>
   );
@@ -303,11 +303,11 @@ const styles = StyleSheet.create({
     width: 60, 
     height: 60, 
     borderRadius: 30, 
-    backgroundColor: '#0b3d91', 
+    backgroundColor: '#001e3c', 
     marginRight: 16,
     borderWidth: 3,
     borderColor: '#FFFFFF',
-    shadowColor: '#0b3d91',
+    shadowColor: '#001e3c',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -335,11 +335,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
     marginRight: 6,
   },
   statusText: {
-    color: '#0b3d91',
+    color: '#001e3c',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   notificationLabel: {
-    color: '#0b3d91',
+    color: '#001e3c',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -440,7 +440,7 @@ const styles = StyleSheet.create({
   },
   waitingCard: {
     borderLeftWidth: 4,
-    borderLeftColor: '#0b3d91',
+    borderLeftColor: '#001e3c',
   },
   completedCard: {
     borderLeftWidth: 4,
@@ -517,142 +517,60 @@ const styles = StyleSheet.create({
   },
   content: { 
     flex: 1,
-    paddingBottom: 100, // Space for bottom navigation
+    paddingBottom: 90,
   },
-  bottomMenu: {
+  navBar: {
     position: 'absolute',
-    left: 5,
-    right: 5,
+    left: 0,
+    right: 0,
     bottom: 0,
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: '#001e3c',
+    paddingTop: 10,
+    paddingBottom: 18,
+    paddingHorizontal: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 16,
   },
-  tab: { 
-    flex: 1, 
-    alignItems: 'center', 
-    paddingVertical: 12, 
-    borderRadius: 12,
-    marginHorizontal: 4,
-  },
-  tabActive: { 
-    backgroundColor: '#0b3d91',
-  },
-  icon: { 
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  iconActive: {
-    transform: [{ scale: 1.1 }],
-  },
-  tabLabel: { 
-    fontSize: 11, 
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  tabLabelActive: {
-    color: '#FFFFFF',
-  },
-  floatingBarWrap: {
-    position: 'absolute',
-    left: 8,
-    right: 8,
-    bottom: 12,
-    alignItems: 'center',
-    zIndex: 40,
-    pointerEvents: 'box-none',
-  },
-  floatingBar: {
-    width: '100%',
-    maxWidth: 980,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#0b3d91',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  floatingTab: {
+  navItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
-    marginHorizontal: 4,
   },
-  floatingIcon: {
-    fontSize: 18,
-    marginBottom: 4,
-    color: '#64748B',
+  navIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 3,
+    backgroundColor: 'transparent',
   },
-  floatingIconActive: {
-    color: '#0b3d91',
+  navIconWrapActive: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  floatingLabel: {
-    fontSize: 11,
-    color: '#64748B',
+  navIcon: {
+    fontSize: 20,
+  },
+  navLabel: {
+    fontSize: 10,
+    color: 'rgba(255,255,255,0.5)',
     fontWeight: '600',
+    textAlign: 'center',
   },
-  floatingLabelActive: {
-    color: '#0b3d91',
-    fontSize: 12,
-    marginTop: 6,
-  },
-  floatingLabelHidden: {
-    height: 0,
-    color: 'transparent',
-    marginTop: 0,
-    opacity: 0,
-  },
-  activeDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginTop: 6,
-    backgroundColor: 'transparent',
-  },
-  activeDotVisible: {
-    backgroundColor: '#0b3d91',
-  },
-  paymentAction: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -28,
-    shadowColor: '#0b3d91',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 10,
-  },
-  paymentInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0b3d91',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: 'rgba(11,61,145,0.12)',
-  },
-  paymentIcon: {
+  navLabelActive: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontWeight: '700',
+  },
+  navDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#FFFFFF',
+    marginTop: 3,
   },
   sectionTitle: { 
     fontSize: 16, 
@@ -694,7 +612,7 @@ const styles = StyleSheet.create({
     padding: 16, 
     borderRadius: 12,
     borderLeftWidth: 4,
-    borderLeftColor: '#0b3d91',
+    borderLeftColor: '#001e3c',
     shadowColor: '#1E293B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
@@ -726,7 +644,7 @@ const styles = StyleSheet.create({
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B' },
   modalClose: { padding: 6 },
-  modalCloseText: { color: '#0b3d91', fontWeight: '700' },
+  modalCloseText: { color: '#041430', fontWeight: '700' },
   notifItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   notifTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
   notifTime: { fontSize: 12, color: '#64748B', marginTop: 4 },

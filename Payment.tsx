@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   section: {marginBottom: 14},
   sectionTitle: {fontSize: 16, fontWeight: '700', marginBottom: 8},
   buttonPrimary: {
-    backgroundColor: '#0b84ff',
+    backgroundColor: '#001e3c',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',

@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 20, fontWeight: '700', color: '#1E293B', marginBottom: 6 },
   label: { color: '#374151', marginTop: 10, marginBottom: 6 },
   input: { backgroundColor: '#FFFFFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#E2E8F0' },
-  button: { marginTop: 16, backgroundColor: '#0b3d91', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  button: { marginTop: 16, backgroundColor: '#001e3c', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   buttonText: { color: '#FFF', fontWeight: '700' },
   disabled: { opacity: 0.6 },
   cancel: { marginTop: 12, alignItems: 'center' },

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert, ScrollView, StatusBar } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 import Chat from './Chat';
@@ -17,16 +17,7 @@ type AppointmentItem = {
 };
 
 export default function Appointment({ userId, onBack }: { userId?: number; onBack?: () => void }) {
-  const [appointments, setAppointments] = useState<AppointmentItem[]>([
-    {
-      id: '1',
-      title: 'Dr. Emily Carter',
-      datetime: 'Tomorrow • 10:30 AM',
-      description: 'Video call — 20 minutes',
-      status: 'confirmed',
-      doctor_id: '33',
-    },
-  ]);
+  const [appointments, setAppointments] = useState<AppointmentItem[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
@@ -198,8 +189,12 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
         </View>
 
         {loadingAppointments ? (
-          <View style={styles.loadingCard}>
-            <Text style={styles.loadingText}>Loading appointments...</Text>
+          <ActivityIndicator size="small" color="#001e3c" style={{ marginVertical: 16 }} />
+        ) : null}
+
+        {!loadingAppointments && appointments.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No appointments yet.</Text>
           </View>
         ) : null}
 
@@ -412,22 +407,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  loadingCard: {
+  emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 24,
     marginBottom: 16,
     alignItems: 'center',
-    shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  loadingText: {
-    color: '#64748B',
+  emptyText: {
+    color: '#94A3B8',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   appCard: { 
     backgroundColor: '#FFFFFF', 
@@ -454,7 +444,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -501,7 +491,7 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   statusConfirmedText: {
-    color: '#0b3d91',
+    color: '#041430',
   },
   statusCancelledText: {
     color: '#B91C1C',
@@ -556,7 +546,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryAction: { 
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
   },
   secondaryAction: { 
     backgroundColor: '#0F172A',
@@ -577,10 +567,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0b3d91', 
+    backgroundColor: '#001e3c', 
     paddingVertical: 10, 
     borderRadius: 10,
-    shadowColor: '#0b3d91',
+    shadowColor: '#001e3c',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.18,
     shadowRadius: 6,
@@ -669,7 +659,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   modalSave: { 
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
   },
   modalCancelText: { 
     color: '#64748B',

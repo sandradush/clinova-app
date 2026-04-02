@@ -82,7 +82,7 @@ export default function Register({ onCancel }: Props) {
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.card} keyboardShouldPersistTaps="handled">
           <View style={styles.headerRow}>
-            <View style={styles.logo}><Text style={styles.logoMark}>CL</Text></View>
+            <View style={styles.logo}><Text style={styles.logoMark}>CU</Text></View>
             <Text style={styles.cardTitle}>Create account</Text>
           </View>
 
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    shadowColor: '#0b3d91',
+    shadowColor: '#001e3c',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.07,
     shadowRadius: 10,
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   picker: {
     width: '100%'
   },
-  button: { width: '100%', backgroundColor: '#0b3d91', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
+  button: { width: '100%', backgroundColor: '#001e3c', borderRadius: 8, paddingVertical: 10, alignItems: 'center', marginTop: 4 },
   buttonText: { color: '#FFFFFF', fontWeight: '600' },
   row: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
   buttonDisabled: {
@@ -255,11 +255,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#0b3d91',
+    backgroundColor: '#001e3c',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
-    shadowColor: '#0b3d91',
+    shadowColor: '#001e3c',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28,
     shadowRadius: 6,
@@ -274,7 +274,7 @@ const styles = StyleSheet.create({
   pwLabel: { fontSize: 12, color: '#6B7280', marginLeft: 8 },
   termsRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 8 },
   checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: '#CBD5E1', marginRight: 8, justifyContent: 'center', alignItems: 'center' },
-  checkboxChecked: { backgroundColor: '#0b84ff', borderColor: '#0b84ff' },
+  checkboxChecked: { backgroundColor: '#001e3c', borderColor: '#001e3c' },
   checkboxTick: { color: '#fff', fontWeight: '700' },
   termsText: { color: '#475569', fontSize: 13, flex: 1 },
 });
