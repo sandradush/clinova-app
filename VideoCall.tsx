@@ -1,494 +1,260 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 
-export default function VideoCall({ name, onEnd, patientId, doctorId }: { name?: string; onEnd: () => void; patientId?: string | number; doctorId?: string | number }) {
+const WS_BASE = 'wss://clinic-backend-s2lx.onrender.com';
+const BASE = 'https://clinic-backend-s2lx.onrender.com';
+
+export default function VideoCall({
+  name, onEnd, patientId, doctorId, appointmentId,
+}: {
+  name?: string;
+  onEnd: () => void;
+  patientId?: string | number;
+  doctorId?: string | number;
+  appointmentId?: string | number;
+}) {
   const [seconds, setSeconds] = useState(0);
-  const timer = useRef<number | null>(null);
+  const [muted, setMuted] = useState(false);
+  const [camOff, setCamOff] = useState(false);
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
+  const [callStatus, setCallStatus] = useState<'calling' | 'connected' | 'ended'>('calling');
+  const timerRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const [signalLog, setSignalLog] = useState<string[]>([]);
-  const [localStream, setLocalStream] = useState<any | null>(null);
-  const [remoteStream, setRemoteStream] = useState<any | null>(null);
   const pcRef = useRef<any>(null);
-  const [webrtcAvailable, setWebrtcAvailable] = useState<boolean>(true);
-  const rnwebrtcRef = useRef<any>(null);
 
+  const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
+
+  // Timer — starts when call is connected
   useEffect(() => {
-    timer.current = setInterval(() => setSeconds(s => s + 1), 1000) as any;
-    return () => { if (timer.current) clearInterval(timer.current as any); };
-  }, []);
+    if (callStatus === 'connected') {
+      timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [callStatus]);
 
-  const fmt = (s: number) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
-
+  // Initiate call on backend + open WebSocket signaling channel
   useEffect(() => {
     if (!patientId) return;
+
+    // Notify backend to initiate the call
+    fetch(`${BASE}/api/calls/initiate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ caller_id: patientId, receiver_id: doctorId, appointment_id: appointmentId }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        // room_id can be used to join a specific room if backend supports it
+        console.log('Call initiated:', data);
+      })
+      .catch(() => {});
+
+    // Open WebSocket signaling channel
     try {
-      const url = `wss://call-app-backend-g992.onrender.com/ws/${patientId}`;
-      const ws = new WebSocket(url);
+      const ws = new WebSocket(`${WS_BASE}/ws/call/${patientId}`);
       wsRef.current = ws;
 
-      ws.onopen = () => setSignalLog(l => [...l, `WS open ${url}`]);
-
-      ws.onmessage = ev => {
-        const raw = typeof ev.data === 'string' ? ev.data : '';
-        try {
-          const data = JSON.parse(raw);
-          if (data && (data.type === 'offer' || data.type === 'answer' || data.sdp)) {
-            setSignalLog(l => [...l, `<- ${JSON.stringify(data)}`]);
-            // handle incoming SDP offer/answer for WebRTC
-            const pc = pcRef.current;
-            if (pc && data.type === 'offer') {
-              (async () => {
-                try {
-                  await pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
-                  const answer = await pc.createAnswer();
-                  await pc.setLocalDescription(answer);
-                  sendSignal('answer', answer.sdp || '');
-                } catch (e) {
-                  setSignalLog(l => [...l, `pc answer error`]);
-                }
-              })();
-            } else if (pc && data.type === 'answer') {
-              (async () => {
-                try {
-                  await pc.setRemoteDescription({ type: 'answer', sdp: data.sdp });
-                } catch (e) {
-                  setSignalLog(l => [...l, `pc setRemote answer error`]);
-                }
-              })();
-            }
-            return;
-          }
-        } catch (e) {
-          // not pure JSON
-        }
-
-        const jsonMatch = raw.match(/(\{[\s\S]*\})/);
-        if (jsonMatch) {
-          try {
-            const data = JSON.parse(jsonMatch[1]);
-            setSignalLog(l => [...l, `<- ${JSON.stringify(data)}`]);
-            return;
-          } catch (e) {
-            // ignore
-          }
-        }
-
-        if (raw) setSignalLog(l => [...l, `<- ${raw}`]);
+      ws.onopen = () => {
+        setWsStatus('connected');
+        setCallStatus('connected');
+        // Send call-start signal to doctor
+        ws.send(JSON.stringify({
+          type: 'call-start',
+          to: String(doctorId),
+          from: String(patientId),
+          appointment_id: appointmentId,
+        }));
       };
 
-      ws.onerror = () => setSignalLog(l => [...l, `WS error`] );
-      ws.onclose = () => setSignalLog(l => [...l, `WS closed`] );
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === 'call-accepted') setCallStatus('connected');
+          if (data.type === 'call-ended') { setCallStatus('ended'); onEnd(); }
+          // WebRTC signaling
+          handleSignal(data);
+        } catch (_) {}
+      };
 
-      return () => { try { ws.close(); } catch(e){}; wsRef.current = null; };
-    } catch (e) {
-      setSignalLog(l => [...l, `WS init error`]);
-    }
-  }, [patientId]);
-
-  useEffect(() => {
-    // try to load react-native-webrtc at runtime to avoid bundler errors when not installed
-    try {
-      // avoid static require so Metro doesn't attempt to resolve at bundle-time
-      const rnwebrtc = eval("require")('react-native-webrtc');
-      rnwebrtcRef.current = rnwebrtc;
-      setWebrtcAvailable(true);
-    } catch (e) {
-      rnwebrtcRef.current = null;
-      setWebrtcAvailable(false);
-      setSignalLog(l => [...l, 'react-native-webrtc not installed — camera disabled']);
-      return;
-    }
-
-    // get camera/mic and setup peer connection if available
-    let mounted = true;
-    (async () => {
-      try {
-        const mediaDevices = rnwebrtcRef.current.mediaDevices;
-        const RTCPeerConnectionClass = rnwebrtcRef.current.RTCPeerConnection || rnwebrtcRef.current.RTCIceCandidate && rnwebrtcRef.current.RTCPeerConnection;
-        if (!mediaDevices || !RTCPeerConnectionClass) {
-          setSignalLog(l => [...l, 'react-native-webrtc present but API missing']);
-          setWebrtcAvailable(false);
-          return;
-        }
-
-        const stream = await mediaDevices.getUserMedia({ video: true, audio: true });
-        if (!mounted) return;
-        setLocalStream(stream);
-
-        const pc = new RTCPeerConnectionClass();
-        pcRef.current = pc;
-
-        try { stream.getTracks().forEach((t: any) => pc.addTrack(t, stream)); } catch (e) {}
-
-        pc.ontrack = (event: any) => {
-          if (event.streams && event.streams[0]) setRemoteStream(event.streams[0]);
-        };
-
-        pc.onaddstream = (e: any) => setRemoteStream(e.stream);
-
-        pc.onicecandidate = (e: any) => {
-          if (e.candidate) setSignalLog(l => [...l, `ice ${JSON.stringify(e.candidate)}`]);
-        };
-      } catch (e) {
-        setSignalLog(l => [...l, `getUserMedia error`]);
-      }
-    })();
+      ws.onerror = () => setWsStatus('disconnected');
+      ws.onclose = () => setWsStatus('disconnected');
+    } catch (_) {}
 
     return () => {
-      mounted = false;
-      try { localStream?.getTracks().forEach((t:any) => t.stop()); } catch (e) {}
-      if (pcRef.current) try { pcRef.current.close(); } catch(e) {}
+      try { wsRef.current?.close(); } catch (_) {}
+      wsRef.current = null;
+      try { pcRef.current?.close(); } catch (_) {}
     };
-  }, []);
+  }, [patientId, doctorId]);
 
-  useEffect(() => {
-    // nothing here — WebRTC setup handled in the runtime loader useEffect above
-  }, []);
+  const handleSignal = (data: any) => {
+    // WebRTC signaling — requires react-native-webrtc installed
+    // If you install it: npx expo install react-native-webrtc
+    // Then uncomment and use RTCPeerConnection here
+  };
 
-  const sendSignal = (type: 'offer' | 'answer', sdp: string) => {
-    const payload = { to: String(doctorId ?? ''), type, sdp };
-    try {
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-        setSignalLog(l => [...l, `-> ${JSON.stringify(payload)}`]);
-      } else {
-        setSignalLog(l => [...l, `-> (ws closed) ${JSON.stringify(payload)}`]);
-      }
-    } catch (e) {
-      setSignalLog(l => [...l, `send error`]);
+  const sendSignal = (payload: object) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(payload));
     }
   };
 
-  const WebRTCView: any = rnwebrtcRef.current?.RTCView;
+  const endCall = () => {
+    sendSignal({ type: 'call-ended', to: String(doctorId), from: String(patientId) });
+    try { wsRef.current?.close(); } catch (_) {}
+    onEnd();
+  };
 
   return (
     <RNSSafeAreaView style={styles.safe}>
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Video Consultation</Text>
-          <Text style={styles.subtitle}>Dr. {name || 'Smith'}</Text>
-        </View>
-        <View style={styles.timerContainer}>
-          <View style={styles.recordingIndicator} />
-          <Text style={styles.timer}>{fmt(seconds)}</Text>
+        <Text style={styles.headerTitle}>Video Consultation</Text>
+        <View style={styles.timerRow}>
+          {callStatus === 'connected' && <View style={styles.recDot} />}
+          <Text style={styles.timerText}>
+            {callStatus === 'calling' ? 'Calling...' : fmt(seconds)}
+          </Text>
         </View>
       </View>
 
-      <View style={styles.videoArea}>
-        <View style={styles.remote}>
-            <View style={styles.remoteVideoPlaceholder}>
-              {remoteStream ? (
-                WebRTCView ? (
-                  <WebRTCView
-                    streamURL={remoteStream.toURL ? remoteStream.toURL() : remoteStream}
-                    style={{ width: 300, height: 220, borderRadius: 12 }}
-                    objectFit="cover"
-                  />
-                ) : (
-                  <Text style={{ color: '#D1D5DB' }}>Remote video unavailable (react-native-webrtc not installed)</Text>
-                )
-              ) : (
-                <>
-                  <View style={styles.doctorAvatar}>
-                    <Text style={styles.doctorInitial}>{name?.charAt(0) || 'D'}</Text>
-                  </View>
-                  <Text style={styles.doctorName}>Dr. {name || 'Smith'}</Text>
-                  <Text style={styles.specialization}>General Physician</Text>
-                  <Text style={styles.connectionStatus}>✅ Connected</Text>
-                </>
-              )}
-            </View>
+      {/* Remote video area */}
+      <View style={styles.remoteArea}>
+        <View style={styles.doctorAvatarWrap}>
+          <View style={styles.doctorAvatar}>
+            <Text style={styles.doctorInitial}>{name?.charAt(0) || 'D'}</Text>
           </View>
-        
-        <View style={styles.local}>
-          <View style={styles.localVideoPlaceholder}>
-              {localStream ? (
-                WebRTCView ? (
-                  <WebRTCView
-                    streamURL={localStream.toURL ? localStream.toURL() : localStream}
-                    style={{ width: '100%', height: '100%' }}
-                    objectFit="cover"
-                  />
-                ) : (
-                  <Text style={{ color: '#D1D5DB' }}>Local preview unavailable (react-native-webrtc not installed)</Text>
-                )
-              ) : (
-                <Text style={styles.localText}>You</Text>
-              )}
-            </View>
-          <TouchableOpacity style={styles.flipCamera}>
-            <Text style={styles.flipIcon}>🔄</Text>
-          </TouchableOpacity>
+          {callStatus === 'calling' && (
+            <View style={styles.pulseRing} />
+          )}
+        </View>
+        <Text style={styles.doctorName}>{name || 'Doctor'}</Text>
+        <View style={styles.statusPill}>
+          <View style={[styles.statusDot, wsStatus === 'connected' ? styles.dotGreen : styles.dotGray]} />
+          <Text style={styles.statusPillText}>
+            {callStatus === 'calling' ? 'Ringing...' : callStatus === 'connected' ? 'Connected' : 'Disconnected'}
+          </Text>
+        </View>
+        <Text style={styles.videoNote}>
+          📹 Video stream requires react-native-webrtc{'\n'}Ask your backend dev to confirm WebRTC support
+        </Text>
+      </View>
+
+      {/* Local preview */}
+      <View style={styles.localPreview}>
+        <View style={styles.localInner}>
+          <Text style={styles.localText}>{camOff ? '📷 Off' : 'You'}</Text>
         </View>
       </View>
 
+      {/* Controls */}
       <View style={styles.controls}>
-        <TouchableOpacity style={styles.controlButton}>
-          <View style={[styles.controlIcon, { backgroundColor: '#64748B' }]}>
-            <Text style={styles.iconText}>🎤</Text>
+        <TouchableOpacity style={styles.ctrlBtn} onPress={() => setMuted(m => !m)}>
+          <View style={[styles.ctrlIcon, muted && styles.ctrlIconRed]}>
+            <Text style={styles.ctrlEmoji}>{muted ? '🔇' : '🎤'}</Text>
           </View>
-          <Text style={styles.controlLabel}>Mute</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.endCallButton} onPress={onEnd}>
-          <View style={styles.endCallIcon}>
-            <Text style={styles.endCallIconText}>📞</Text>
-          </View>
-          <Text style={styles.endCallLabel}>End Call</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.controlButton}>
-          <View style={[styles.controlIcon, { backgroundColor: '#059669' }]}>
-            <Text style={styles.iconText}>📹</Text>
-          </View>
-          <Text style={styles.controlLabel}>Camera</Text>
+          <Text style={styles.ctrlLabel}>{muted ? 'Unmute' : 'Mute'}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.controlButton, { marginLeft: 12 }]} onPress={() => sendSignal('offer', '<test-offer-sdp>')}>
-          <View style={[styles.controlIcon, { backgroundColor: '#2563EB' }]}>
-            <Text style={styles.iconText}>▶</Text>
+        <TouchableOpacity style={styles.endBtn} onPress={endCall}>
+          <View style={styles.endIcon}>
+            <Text style={styles.endEmoji}>📞</Text>
           </View>
-          <Text style={styles.controlLabel}>Send Offer</Text>
+          <Text style={styles.endLabel}>End</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.controlButton, { marginLeft: 8 }]} onPress={() => sendSignal('answer', '<test-answer-sdp>')}>
-          <View style={[styles.controlIcon, { backgroundColor: '#10B981' }]}>
-            <Text style={styles.iconText}>↺</Text>
+        <TouchableOpacity style={styles.ctrlBtn} onPress={() => setCamOff(c => !c)}>
+          <View style={[styles.ctrlIcon, camOff && styles.ctrlIconRed]}>
+            <Text style={styles.ctrlEmoji}>{camOff ? '📷' : '📹'}</Text>
           </View>
-          <Text style={styles.controlLabel}>Send Answer</Text>
+          <Text style={styles.ctrlLabel}>{camOff ? 'Cam Off' : 'Camera'}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>💬</Text>
-          <Text style={styles.actionText}>Chat</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>📋</Text>
-          <Text style={styles.actionText}>Notes</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Text style={styles.actionIcon}>📄</Text>
-          <Text style={styles.actionText}>Reports</Text>
-        </TouchableOpacity>
-      </View>
-      <View style={{ padding: 12, backgroundColor: '#0B1220' }}>
-        <Text style={{ color: '#9CA3AF', marginBottom: 8, fontSize: 12 }}>Signal log</Text>
-        {signalLog.slice(-6).map((l, i) => (
-          <Text key={i} style={{ color: '#D1D5DB', fontSize: 12 }}>{l}</Text>
-        ))}
+      {/* WS status bar */}
+      <View style={styles.statusBar}>
+        <Text style={styles.statusBarText}>
+          Signal: {wsStatus}  •  Patient: {patientId}  •  Doctor: {doctorId}
+        </Text>
       </View>
     </RNSSafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
-    backgroundColor: '#0F172A' 
+  safe: { flex: 1, backgroundColor: '#0F172A' },
+  header: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, paddingVertical: 16, backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  header: { 
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20, 
-    paddingVertical: 16,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+  headerTitle: { color: '#FFFFFF', fontSize: 18, fontWeight: '700' },
+  timerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444' },
+  timerText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+
+  remoteArea: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#1E293B', gap: 12,
   },
-  headerContent: {
-    flex: 1,
-  },
-  title: { 
-    color: '#FFFFFF', 
-    fontWeight: '700',
-    fontSize: 18,
-    marginBottom: 2,
-  },
-  subtitle: {
-    color: '#CBD5E1',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  recordingIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#EF4444',
-    marginRight: 8,
-  },
-  timer: { 
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  videoArea: { 
-    flex: 1, 
-    position: 'relative',
-  },
-  remote: { 
-    flex: 1,
-    backgroundColor: '#1E293B',
-    justifyContent: 'center', 
-    alignItems: 'center',
-  },
-  remoteVideoPlaceholder: {
-    alignItems: 'center',
-  },
+  doctorAvatarWrap: { position: 'relative', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   doctorAvatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#059669',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    width: 120, height: 120, borderRadius: 60,
+    backgroundColor: '#059669', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 3, borderColor: '#FFFFFF',
   },
-  doctorInitial: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  doctorInitial: { fontSize: 48, fontWeight: '700', color: '#FFFFFF' },
+  pulseRing: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    borderWidth: 2, borderColor: 'rgba(5,150,105,0.4)',
   },
-  doctorName: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 4,
+  doctorName: { color: '#FFFFFF', fontSize: 22, fontWeight: '700' },
+  statusPill: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20,
   },
-  specialization: {
-    color: '#CBD5E1',
-    fontSize: 14,
-    fontWeight: '400',
-    marginBottom: 8,
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  dotGreen: { backgroundColor: '#22C55E' },
+  dotGray: { backgroundColor: '#94A3B8' },
+  statusPillText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  videoNote: {
+    color: 'rgba(255,255,255,0.4)', fontSize: 11, textAlign: 'center',
+    marginTop: 16, lineHeight: 18, paddingHorizontal: 32,
   },
-  connectionStatus: {
-    color: '#10B981',
-    fontSize: 14,
-    fontWeight: '500',
+
+  localPreview: {
+    position: 'absolute', top: 80, right: 16,
+    width: 100, height: 140, borderRadius: 12,
+    overflow: 'hidden', borderWidth: 2, borderColor: '#FFFFFF',
+    backgroundColor: '#374151',
   },
-  local: { 
-    position: 'absolute', 
-    top: 20,
-    right: 20, 
-    width: 120, 
-    height: 160, 
-    backgroundColor: '#374151', 
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+  localInner: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  localText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+
+  controls: {
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    gap: 40, paddingVertical: 24, backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  localVideoPlaceholder: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  ctrlBtn: { alignItems: 'center', gap: 6 },
+  ctrlIcon: {
+    width: 56, height: 56, borderRadius: 28,
+    backgroundColor: '#334155', alignItems: 'center', justifyContent: 'center',
   },
-  localText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+  ctrlIconRed: { backgroundColor: '#EF4444' },
+  ctrlEmoji: { fontSize: 22 },
+  ctrlLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+  endBtn: { alignItems: 'center', gap: 6 },
+  endIcon: {
+    width: 64, height: 64, borderRadius: 32,
+    backgroundColor: '#EF4444', alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#EF4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.5, shadowRadius: 8, elevation: 8,
   },
-  flipCamera: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 24,
-    height: 24,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+  endEmoji: { fontSize: 26, transform: [{ rotate: '135deg' }] },
+  endLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600' },
+
+  statusBar: {
+    paddingVertical: 8, paddingHorizontal: 16, backgroundColor: '#0B1220',
   },
-  flipIcon: {
-    fontSize: 12,
-  },
-  controls: { 
-    flexDirection: 'row', 
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40, 
-    paddingVertical: 20,
-    gap: 40,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  controlButton: {
-    alignItems: 'center',
-  },
-  controlIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  iconText: {
-    fontSize: 20,
-  },
-  controlLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  endCallButton: {
-    alignItems: 'center',
-  },
-  endCallIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#EF4444',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    shadowColor: '#EF4444',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  endCallIconText: {
-    fontSize: 24,
-    transform: [{ rotate: '135deg' }],
-  },
-  endCallLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  bottomActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 32,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
-  actionButton: {
-    alignItems: 'center',
-  },
-  actionIcon: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  actionText: {
-    color: '#CBD5E1',
-    fontSize: 10,
-    fontWeight: '500',
-  },
+  statusBarText: { color: '#475569', fontSize: 10, textAlign: 'center' },
 });

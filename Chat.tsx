@@ -1,163 +1,210 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 
-type Msg = { id: string; text: string; me?: boolean };
+const BASE = 'https://clinic-backend-s2lx.onrender.com';
+const WS_BASE = 'wss://clinic-backend-s2lx.onrender.com';
+const PRIMARY = '#041430';
 
-export default function Chat({ onClose, name, patientId, doctorId }: { onClose: () => void; name?: string; patientId: string | number; doctorId: string | number }) {
-  const [messages, setMessages] = useState<Msg[]>([
-    { id: '1', text: `Hi, this is ${name || 'Dr.'}. How can I help?` },
-  ]);
+type Msg = { id: string; text: string; me: boolean; timestamp?: string };
+
+export default function Chat({
+  onClose, name, patientId, doctorId,
+}: {
+  onClose: () => void;
+  name?: string;
+  patientId: string | number;
+  doctorId: string | number;
+}) {
+  const [messages, setMessages] = useState<Msg[]>([]);
   const [text, setText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const listRef = useRef<FlatList<Msg>>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const pendingSent = useRef<Set<string>>(new Set());
 
+  // Load chat history
   useEffect(() => {
-    listRef.current?.scrollToEnd({ animated: false });
-  }, []);
-
-  const doctorWsRef = useRef<WebSocket | null>(null);
-
-  const parseAndAppend = (ev: MessageEvent) => {
-    const raw = typeof ev.data === 'string' ? ev.data : '';
-    try {
-      const data = JSON.parse(raw);
-      if (data && data.content) {
-        const isMe = String(data.sender) === String(patientId);
-        // Skip echo of our own sent messages (already added locally)
-        if (isMe && pendingSentRef.current.has(String(data.content))) {
-          pendingSentRef.current.delete(String(data.content));
-          return;
+    fetch(`${BASE}/api/chat/history?patient_id=${patientId}&doctor_id=${doctorId}`, {
+      headers: { accept: 'application/json' },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          setMessages(data.map((d: any) => ({
+            id: String(d.id),
+            text: d.content || d.message || '',
+            me: String(d.sender) === String(patientId) || String(d.sender_id) === String(patientId),
+            timestamp: d.timestamp || d.created_at || '',
+          })));
+          setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
         }
-        setMessages(prev => [...prev, { id: String(Date.now()), text: String(data.content), me: isMe }]);
-        setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-        return;
-      }
-    } catch (e) {}
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [patientId, doctorId]);
 
-    if (raw) {
-      const m = raw.match(/^\s*(\d+)\s*:\s*([\s\S]+)$/);
-      if (m) {
-        const isMe = String(m[1]) === String(patientId);
-        if (isMe && pendingSentRef.current.has(String(m[2]))) {
-          pendingSentRef.current.delete(String(m[2]));
-          return;
-        }
-        setMessages(prev => [...prev, { id: String(Date.now()), text: String(m[2]), me: isMe }]);
-      } else {
-        setMessages(prev => [...prev, { id: String(Date.now()), text: raw, me: false }]);
-      }
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    }
-  };
-
+  // WebSocket — connect to patient's channel on the clinic backend
   useEffect(() => {
     if (!patientId) return;
 
-    // Connect to patient's own channel to receive messages sent to patient
-    const openWs = (channel: string | number, ref: React.MutableRefObject<WebSocket | null>) => {
+    const connect = (channelId: string | number, ref: React.MutableRefObject<WebSocket | null>) => {
       try {
-        const ws = new WebSocket(`wss://chat.mababa.app/ws/${channel}`);
+        const ws = new WebSocket(`${WS_BASE}/ws/chat/${channelId}`);
         ref.current = ws;
-        ws.onmessage = parseAndAppend;
-        ws.onerror = () => {};
-        ws.onclose = () => {};
-      } catch (e) {}
+        ws.onopen = () => setWsStatus('connected');
+        ws.onclose = () => setWsStatus('disconnected');
+        ws.onerror = () => setWsStatus('disconnected');
+        ws.onmessage = (ev) => {
+          const raw = typeof ev.data === 'string' ? ev.data : '';
+          try {
+            const data = JSON.parse(raw);
+            const content = data.content || data.message || '';
+            if (!content) return;
+            const isMe = String(data.sender || data.sender_id) === String(patientId);
+            // Skip echo of messages we already added locally
+            if (isMe && pendingSent.current.has(content)) {
+              pendingSent.current.delete(content);
+              return;
+            }
+            const msg: Msg = {
+              id: String(data.id || Date.now()),
+              text: content,
+              me: isMe,
+              timestamp: data.timestamp || data.created_at || '',
+            };
+            setMessages(prev => [...prev, msg]);
+            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+          } catch (_) {}
+        };
+      } catch (_) {}
     };
 
-    openWs(patientId, wsRef);
-    // Also listen on doctor's channel so we receive messages the doctor sends
-    if (doctorId) openWs(doctorId, doctorWsRef);
+    const doctorWsRef = { current: null as WebSocket | null };
+    connect(patientId, wsRef);
+    // Also listen on doctor's channel to receive messages the doctor sends
+    if (doctorId) connect(doctorId, doctorWsRef);
 
     return () => {
-      try { wsRef.current?.close(); } catch (e) {}
-      try { doctorWsRef.current?.close(); } catch (e) {}
+      try { wsRef.current?.close(); } catch (_) {}
+      try { doctorWsRef.current?.close(); } catch (_) {}
       wsRef.current = null;
-      doctorWsRef.current = null;
     };
   }, [patientId, doctorId]);
 
-  const pendingSentRef = useRef<Set<string>>(new Set());
-
   const send = () => {
-    if (!text.trim()) return;
     const content = text.trim();
-    const tempId = String(Date.now());
-    // Track this content so we can ignore the echo from our own WS channel
-    pendingSentRef.current.add(content);
-    setMessages(prev => [...prev, { id: tempId, text: content, me: true }]);
-    const payload = { sender: String(patientId), receiver: String(doctorId), content };
+    if (!content) return;
     setText('');
-    try {
-      const ws = wsRef.current;
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(payload));
-      }
-    } catch (e) {}
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 200);
+    pendingSent.current.add(content);
+    // Optimistic local add
+    setMessages(prev => [...prev, { id: String(Date.now()), text: content, me: true }]);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+
+    const payload = JSON.stringify({
+      sender: String(patientId),
+      receiver: String(doctorId),
+      content,
+    });
+
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(payload);
+    } else {
+      // Fallback: REST endpoint if WebSocket is not available
+      fetch(`${BASE}/api/chat/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+        body: payload,
+      }).catch(() => {});
+    }
+  };
+
+  const fmtTime = (ts?: string) => {
+    if (!ts) return '';
+    try { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; }
   };
 
   return (
     <RNSSafeAreaView style={styles.safe}>
+      {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <View style={styles.doctorAvatar}>
             <Text style={styles.doctorInitial}>{name?.charAt(0) || 'D'}</Text>
           </View>
-          <View style={styles.headerInfo}>
-            <Text style={styles.title}>Dr. {name || 'Smith'}</Text>
-            <View style={styles.statusContainer}>
-              <View style={styles.statusDot} />
-              <Text style={styles.statusText}>Available</Text>
+          <View>
+            <Text style={styles.headerName}>{name || 'Doctor'}</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, wsStatus === 'connected' ? styles.dotGreen : styles.dotGray]} />
+              <Text style={styles.statusText}>
+                {wsStatus === 'connected' ? 'Online' : wsStatus === 'connecting' ? 'Connecting...' : 'Offline'}
+              </Text>
             </View>
           </View>
         </View>
         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-          <Text style={styles.close}>×</Text>
+          <Text style={styles.closeText}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        ref={listRef}
-        data={messages}
-        keyExtractor={i => i.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <View style={[styles.msg, item.me ? styles.me : styles.them]}>
-            {!item.me && (
-              <View style={styles.messageAvatar}>
-                <Text style={styles.avatarText}>{name?.charAt(0) || 'D'}</Text>
-              </View>
-            )}
-            <View style={[styles.messageBubble, item.me ? styles.myBubble : styles.theirBubble]}>
-              <Text style={[styles.msgText, item.me ? styles.myText : styles.theirText]}>{item.text}</Text>
-              <Text style={styles.timestamp}>{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</Text>
+      {/* Messages */}
+      {loading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator color={PRIMARY} />
+          <Text style={styles.loadingText}>Loading messages...</Text>
+        </View>
+      ) : (
+        <FlatList
+          ref={listRef}
+          data={messages}
+          keyExtractor={i => i.id}
+          contentContainerStyle={styles.list}
+          ListEmptyComponent={
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyIcon}>💬</Text>
+              <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
             </View>
-            {item.me && (
-              <View style={styles.messageAvatar}>
-                <Text style={styles.avatarText}>Y</Text>
+          }
+          renderItem={({ item }) => (
+            <View style={[styles.row, item.me ? styles.rowMe : styles.rowThem]}>
+              {!item.me && (
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{name?.charAt(0) || 'D'}</Text>
+                </View>
+              )}
+              <View style={[styles.bubble, item.me ? styles.bubbleMe : styles.bubbleThem]}>
+                <Text style={[styles.bubbleText, item.me ? styles.textMe : styles.textThem]}>{item.text}</Text>
+                {item.timestamp ? (
+                  <Text style={[styles.timeText, item.me ? styles.timeMe : styles.timeThem]}>{fmtTime(item.timestamp)}</Text>
+                ) : null}
               </View>
-            )}
-          </View>
-        )}
-      />
+              {item.me && (
+                <View style={[styles.avatar, styles.avatarMe]}>
+                  <Text style={styles.avatarText}>Y</Text>
+                </View>
+              )}
+            </View>
+          )}
+        />
+      )}
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.inputContainer}>
-        <View style={styles.inputRow}>
-          <TouchableOpacity style={styles.attachBtn}>
-            <Text style={styles.attachIcon}>📎</Text>
-          </TouchableOpacity>
-          <TextInput 
-            value={text} 
-            onChangeText={setText} 
-            placeholder="Type a message..." 
+      {/* Input */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.inputBar}>
+          <TextInput
+            value={text}
+            onChangeText={setText}
+            placeholder="Type a message..."
             placeholderTextColor="#9CA3AF"
             style={styles.input}
             multiline
             maxLength={500}
+            onSubmitEditing={send}
           />
-          <TouchableOpacity 
-            style={[styles.sendBtn, text.trim() ? styles.sendBtnActive : styles.sendBtnInactive]} 
+          <TouchableOpacity
+            style={[styles.sendBtn, text.trim() ? styles.sendActive : styles.sendInactive]}
             onPress={send}
             disabled={!text.trim()}
           >
@@ -170,196 +217,72 @@ export default function Chat({ onClose, name, patientId, doctorId }: { onClose: 
 }
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
-    backgroundColor: '#F0F9FF' 
-  },
-  header: { 
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16, 
-    paddingVertical: 16, 
+  safe: { flex: 1, backgroundColor: '#F8FAFF' },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 3,
+    borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
+    elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   doctorAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#001e3c',
-    backgroundColor: '#001e3c',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center',
   },
-  doctorInitial: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  doctorInitial: { fontSize: 17, fontWeight: '700', color: '#FFFFFF' },
+  headerName: { fontSize: 16, fontWeight: '700', color: '#1E293B' },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  dotGreen: { backgroundColor: '#22C55E' },
+  dotGray: { backgroundColor: '#94A3B8' },
+  statusText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+  closeBtn: { padding: 8, borderRadius: 8, backgroundColor: '#F1F5F9' },
+  closeText: { fontSize: 18, color: '#64748B', fontWeight: '600' },
+
+  loadingBox: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingText: { color: '#64748B', fontSize: 14 },
+
+  list: { padding: 16, paddingBottom: 8 },
+  emptyBox: { alignItems: 'center', paddingTop: 80, gap: 12 },
+  emptyIcon: { fontSize: 48 },
+  emptyText: { fontSize: 15, color: '#94A3B8', fontWeight: '500' },
+
+  row: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 10, gap: 8 },
+  rowMe: { justifyContent: 'flex-end' },
+  rowThem: { justifyContent: 'flex-start' },
+  avatar: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: PRIMARY, alignItems: 'center', justifyContent: 'center',
   },
-  headerInfo: {
-    flex: 1,
+  avatarMe: { backgroundColor: '#64748B' },
+  avatarText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
+  bubble: {
+    maxWidth: '72%', paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 18, elevation: 1,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2,
   },
-  title: { 
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 2,
+  bubbleMe: { backgroundColor: PRIMARY, borderBottomRightRadius: 4 },
+  bubbleThem: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 4, borderWidth: 1, borderColor: '#E2E8F0' },
+  bubbleText: { fontSize: 15, lineHeight: 21 },
+  textMe: { color: '#FFFFFF' },
+  textThem: { color: '#1E293B' },
+  timeText: { fontSize: 10, marginTop: 4 },
+  timeMe: { color: 'rgba(255,255,255,0.6)', textAlign: 'right' },
+  timeThem: { color: '#94A3B8' },
+
+  inputBar: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    backgroundColor: '#FFFFFF', borderTopWidth: 1, borderTopColor: '#E2E8F0',
   },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  input: {
+    flex: 1, borderWidth: 1.5, borderColor: '#E2E8F0', borderRadius: 22,
+    paddingHorizontal: 16, paddingVertical: 10, fontSize: 15,
+    backgroundColor: '#F8FAFF', maxHeight: 100, color: '#1E293B',
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#041430',
-    marginRight: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#001e3c',
-    fontWeight: '500',
-  },
-  closeBtn: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#F1F5F9',
-  },
-  close: { 
-    fontSize: 20,
-    color: '#64748B',
-    fontWeight: '600',
-  },
-  list: { 
-    padding: 16,
-    paddingBottom: 20,
-  },
-  msg: { 
-    flexDirection: 'row',
-    marginVertical: 4,
-    alignItems: 'flex-end',
-  },
-  me: { 
-    justifyContent: 'flex-end',
-  },
-  them: { 
-    justifyContent: 'flex-start',
-  },
-  messageAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#001e3c',
-    backgroundColor: '#001e3c',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 8,
-  },
-  avatarText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  messageBubble: {
-    maxWidth: '75%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
-    shadowColor: '#1E293B',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  myBubble: {
-    backgroundColor: '#041430',
-    borderBottomRightRadius: 6,
-  },
-  theirBubble: {
-    backgroundColor: '#FFFFFF',
-    borderBottomLeftRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  msgText: {
-    fontSize: 16,
-    lineHeight: 22,
-    marginBottom: 4,
-  },
-  myText: {
-    color: '#FFFFFF',
-  },
-  theirText: {
-    color: '#1E293B',
-  },
-  timestamp: {
-    fontSize: 10,
-    opacity: 0.7,
-    alignSelf: 'flex-end',
-  },
-  inputContainer: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputRow: { 
-    flexDirection: 'row', 
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  attachBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachIcon: {
-    fontSize: 16,
-  },
-  input: { 
-    flex: 1,
-    borderWidth: 2,
-    borderColor: '#E2E8F0',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: '#FAFBFC',
-    maxHeight: 100,
-  },
-  sendBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendBtnActive: {
-    backgroundColor: '#041430',
-  },
-  sendBtnInactive: {
-    backgroundColor: '#E2E8F0',
-  },
-  sendIcon: {
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
+  sendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  sendActive: { backgroundColor: PRIMARY },
+  sendInactive: { backgroundColor: '#E2E8F0' },
+  sendIcon: { fontSize: 16, color: '#FFFFFF' },
 });

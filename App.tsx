@@ -85,7 +85,7 @@ export default function App() {
     return <Dashboard
       email={user.email} name={user.name} avatarUri={user.avatar} userId={user.id}
       onLogout={() => setUser(null)}
-      onProfileSave={(patient: any) => setUser((prev: any) => ({ ...(prev || {}), patient }))}
+      onProfileSave={(patient: any) => setUser((prev: any) => ({ ...(prev || {}), patient: { ...((prev || {}).patient || {}), ...(patient || {}) } }))}
       userPatient={user.patient}
       onOpenPayment={(appt: any) => { setPaymentAppointment(appt || { id: 'APPT-EX', patientName: user.name || user.email, fee: 3000, scheduled: new Date().toISOString() }); setShowPayment(true); }}
     />;

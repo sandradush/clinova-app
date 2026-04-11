@@ -23,8 +23,10 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
   { name?: string; email?: string; avatarUri?: string; userId?: number; onBack?: () => void; onLogout?: () => void; patient?: Patient; onSave?: (p: Patient|undefined)=>void }) {
   const displayName = name || (email ? email.split('@')[0] : 'User');
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [localPatient, setLocalPatient] = useState<Patient | undefined>(patient);
   const [localAvatar, setLocalAvatar] = useState<string|undefined>(avatarUri);
+  const profileForView = localPatient || patient;
 
   useEffect(() => setLocalPatient(patient), [patient]);
   useEffect(() => setLocalAvatar(avatarUri), [avatarUri]);
@@ -32,8 +34,14 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
   const arrayToString = (arr?: string[]) => (arr && arr.length ? arr.join(', ') : '');
   const stringToArray = (s?: string) => (s ? s.split(',').map(i => i.trim()).filter(Boolean) : []);
 
-  function startEdit() { setLocalPatient(patient ? { ...patient } : {}); setEditing(true); }
-  function cancelEdit() { setLocalPatient(patient); setEditing(false); }
+  function startEdit() {
+    setLocalPatient(localPatient ? { ...localPatient } : (patient ? { ...patient } : { user_id: userId }));
+    setEditing(true);
+  }
+  function cancelEdit() {
+    setLocalPatient(patient || localPatient);
+    setEditing(false);
+  }
   async function saveProfile() {
     const uid = userId ?? localPatient?.user_id;
     if (!uid) { Alert.alert('Save failed', 'No user id available'); return; }
@@ -55,15 +63,26 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
     };
 
     try {
+      setSaving(true);
       const resp = await fetch('https://clinic-backend-s2lx.onrender.com/api/auth/profile', {
         method: 'POST',
         headers: { 'accept': 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const json = await resp.json();
-      if (resp.ok && json?.profile) {
-        // server returns insurance as a stringified object; attempt to parse
-        const p = { ...(json.profile as any) };
+      let json: any = null;
+      try {
+        json = await resp.json();
+      } catch {
+        json = null;
+      }
+      if (resp.ok) {
+        const serverProfile = json?.profile || json?.data?.profile || json?.patient;
+        const p: any = {
+          ...(patient || {}),
+          ...(localPatient || {}),
+          ...(serverProfile || {}),
+          user_id: uid,
+        };
         if (p.insurance && typeof p.insurance === 'string') {
           try { p.insurance = JSON.parse(p.insurance.trim()); } catch (e) { /* leave as-is */ }
         }
@@ -78,6 +97,8 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
     } catch (err) {
       console.warn('saveProfile error', err);
       Alert.alert('Save error', String(err));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -110,9 +131,17 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
     const endpoint = `https://clinic-backend-s2lx.onrender.com/api/auth/profile-image/preview?user_id=${userId}`;
     try {
       const resp = await fetch(endpoint, { method: 'GET', headers: { accept: 'application/json' } });
-      const json = await resp.json();
+      let json: any = null;
+      try {
+        json = await resp.json();
+      } catch {
+        json = null;
+      }
       if (resp.ok && json?.preview_url) {
         setLocalAvatar(json.preview_url);
+      } else if (resp.status === 404) {
+        // No uploaded profile image yet; use fallback avatar without warning.
+        setLocalAvatar(undefined);
       } else {
         console.warn('preview fetch failed', resp.status, json);
       }
@@ -228,7 +257,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={localPatient?.dob || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), dob: t })} placeholder="YYYY-MM-DD" />
             ) : (
-              <Text style={styles.infoValue}>{patient?.dob ? new Date(patient.dob).toLocaleDateString() : 'Not set'}</Text>
+              <Text style={styles.infoValue}>{profileForView?.dob ? new Date(profileForView.dob).toLocaleDateString() : 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -242,7 +271,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
                 ))}
               </View>
             ) : (
-              <Text style={styles.infoValue}>{patient?.gender ? (patient.gender[0].toUpperCase()+patient.gender.slice(1)) : 'Not set'}</Text>
+              <Text style={styles.infoValue}>{profileForView?.gender ? (profileForView.gender[0].toUpperCase()+profileForView.gender.slice(1)) : 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -250,7 +279,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={localPatient?.blood_group || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), blood_group: t })} />
             ) : (
-              <Text style={styles.infoValue}>{patient?.blood_group || 'Not set'}</Text>
+              <Text style={styles.infoValue}>{profileForView?.blood_group || 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -258,7 +287,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={localPatient?.emergency_contact_name || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), emergency_contact_name: t })} />
             ) : (
-              <Text style={styles.infoValue}>{patient?.emergency_contact_name || 'Not set'}</Text>
+              <Text style={styles.infoValue}>{profileForView?.emergency_contact_name || 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -266,7 +295,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={localPatient?.phone || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), phone: t })} keyboardType="phone-pad" />
             ) : (
-              <Text style={styles.infoValue}>{patient?.phone || 'Not set'}</Text>
+              <Text style={styles.infoValue}>{profileForView?.phone || 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -274,7 +303,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={localPatient?.address || ''} onChangeText={t => setLocalPatient({ ...(localPatient||{}), address: t })} />
             ) : (
-              <Text style={styles.infoValue}>{patient?.address || 'Not set'}</Text>
+              <Text style={styles.infoValue}>{profileForView?.address || 'Not set'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -308,7 +337,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
               </View>
             ) : (
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                <Text style={styles.infoValue}>{formatInsurance((patient as any)?.insurance)}</Text>
+                <Text style={styles.infoValue}>{formatInsurance((profileForView as any)?.insurance)}</Text>
               </View>
             )}
           </View>
@@ -321,7 +350,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={arrayToString(localPatient?.allergies)} onChangeText={t => setLocalPatient({ ...(localPatient||{}), allergies: stringToArray(t) })} placeholder="comma separated" />
             ) : (
-              <Text style={styles.infoValue}>{(patient?.allergies && patient.allergies.length) ? patient.allergies.join(', ') : 'None'}</Text>
+              <Text style={styles.infoValue}>{(profileForView?.allergies && profileForView.allergies.length) ? profileForView.allergies.join(', ') : 'None'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -329,7 +358,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={arrayToString(localPatient?.chronic_conditions)} onChangeText={t => setLocalPatient({ ...(localPatient||{}), chronic_conditions: stringToArray(t) })} placeholder="comma separated" />
             ) : (
-              <Text style={styles.infoValue}>{(patient?.chronic_conditions && patient.chronic_conditions.length) ? patient.chronic_conditions.join(', ') : 'None'}</Text>
+              <Text style={styles.infoValue}>{(profileForView?.chronic_conditions && profileForView.chronic_conditions.length) ? profileForView.chronic_conditions.join(', ') : 'None'}</Text>
             )}
           </View>
           <View style={styles.infoRow}>
@@ -337,7 +366,7 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
             {editing ? (
               <TextInput style={styles.input} value={arrayToString(localPatient?.current_medications)} onChangeText={t => setLocalPatient({ ...(localPatient||{}), current_medications: stringToArray(t) })} placeholder="comma separated" />
             ) : (
-              <Text style={styles.infoValue}>{(patient?.current_medications && patient.current_medications.length) ? patient.current_medications.join(', ') : 'None'}</Text>
+              <Text style={styles.infoValue}>{(profileForView?.current_medications && profileForView.current_medications.length) ? profileForView.current_medications.join(', ') : 'None'}</Text>
             )}
           </View>
         </View>
@@ -348,10 +377,10 @@ export default function Profile({ name, email, avatarUri, userId, onBack, onLogo
           </TouchableOpacity>
         ) : (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <TouchableOpacity style={styles.editButton} onPress={saveEdit}>
-              <Text style={styles.editButtonText}>Save</Text>
+            <TouchableOpacity style={styles.editButton} onPress={saveEdit} disabled={saving}>
+              <Text style={styles.editButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.cancelButton} onPress={cancelEdit}>
+            <TouchableOpacity style={styles.cancelButton} onPress={cancelEdit} disabled={saving}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>

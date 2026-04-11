@@ -36,9 +36,16 @@ export default function Dashboard(props: Props) {
         method: 'GET',
         headers: { accept: 'application/json' },
       });
-      const data = await response.json();
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
       if (response.ok && data?.preview_url) {
         setProfileImage(data.preview_url);
+      } else if (response.status === 404) {
+        setProfileImage(undefined);
       }
     } catch (error) {
       console.warn('Failed to fetch profile image:', error);

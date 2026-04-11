@@ -345,6 +345,7 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
               name={videoTarget.title}
               patientId={userId ?? ''}
               doctorId={videoTarget.doctor_id ?? ''}
+              appointmentId={videoTarget.id}
               onEnd={() => setVideoTarget(null)}
             />
           ) : null}
