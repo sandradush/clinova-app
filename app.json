@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "Cura",
+    "name": "Smarthealth",
     "slug": "clinova",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/cura-logo.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.Cura.app"
+      "package": "com.smarthealth.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"

@@ -34,9 +34,10 @@ export default function Chat({
         if (Array.isArray(data)) {
           setMessages(data.map((d: any) => ({
             id: String(d.id),
-            text: d.content || d.message || '',
-            me: String(d.sender) === String(patientId) || String(d.sender_id) === String(patientId),
-            timestamp: d.timestamp || d.created_at || '',
+            text: d.content || '',
+            // real response: { sender: 5, receiver: 39, content, timestamp }
+            me: Number(d.sender) === Number(patientId),
+            timestamp: d.timestamp || '',
           })));
           setTimeout(() => listRef.current?.scrollToEnd({ animated: false }), 100);
         }
@@ -60,10 +61,10 @@ export default function Chat({
           const raw = typeof ev.data === 'string' ? ev.data : '';
           try {
             const data = JSON.parse(raw);
-            const content = data.content || data.message || '';
+            const content = data.content || '';
             if (!content) return;
-            const isMe = String(data.sender || data.sender_id) === String(patientId);
-            // Skip echo of messages we already added locally
+            // real response shape: { id, sender, receiver, content, timestamp }
+            const isMe = Number(data.sender) === Number(patientId);
             if (isMe && pendingSent.current.has(content)) {
               pendingSent.current.delete(content);
               return;
@@ -72,7 +73,7 @@ export default function Chat({
               id: String(data.id || Date.now()),
               text: content,
               me: isMe,
-              timestamp: data.timestamp || data.created_at || '',
+              timestamp: data.timestamp || '',
             };
             setMessages(prev => [...prev, msg]);
             setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
@@ -102,22 +103,38 @@ export default function Chat({
     setMessages(prev => [...prev, { id: String(Date.now()), text: content, me: true }]);
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
 
-    const payload = JSON.stringify({
-      sender: String(patientId),
-      receiver: String(doctorId),
-      content,
-    });
+    // Always send via REST — POST /api/chat/send
+    // sender_id = patient (me), receiver_id = doctor
+    fetch(`${BASE}/api/chat/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({
+        sender_id: Number(patientId),
+        receiver_id: Number(doctorId),
+        content,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        // Update the optimistic message with the real server id & timestamp
+        if (data?.id) {
+          setMessages(prev => prev.map(m =>
+            m.text === content && m.me && !m.timestamp
+              ? { ...m, id: String(data.id), timestamp: data.timestamp }
+              : m
+          ));
+        }
+      })
+      .catch(() => {});
 
+    // Also send over WebSocket if open (for real-time delivery to doctor)
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(payload);
-    } else {
-      // Fallback: REST endpoint if WebSocket is not available
-      fetch(`${BASE}/api/chat/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-        body: payload,
-      }).catch(() => {});
+      ws.send(JSON.stringify({
+        sender_id: Number(patientId),
+        receiver_id: Number(doctorId),
+        content,
+      }));
     }
   };
 

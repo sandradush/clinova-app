@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 
-const WS_BASE = 'wss://clinic-backend-s2lx.onrender.com';
 const BASE = 'https://clinic-backend-s2lx.onrender.com';
+const WS_BASE = 'wss://clinic-backend-s2lx.onrender.com';
 
 export default function VideoCall({
   name, onEnd, patientId, doctorId, appointmentId,
@@ -19,6 +19,8 @@ export default function VideoCall({
   const [camOff, setCamOff] = useState(false);
   const [wsStatus, setWsStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');
   const [callStatus, setCallStatus] = useState<'calling' | 'connected' | 'ended'>('calling');
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [initiateError, setInitiateError] = useState<string | null>(null);
   const timerRef = useRef<any>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<any>(null);
@@ -37,49 +39,28 @@ export default function VideoCall({
   useEffect(() => {
     if (!patientId) return;
 
-    // Notify backend to initiate the call
+    // Step 1: POST /api/calls/initiate
+    // caller_id = doctor (who initiates), receiver_id = patient (who receives)
     fetch(`${BASE}/api/calls/initiate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ caller_id: patientId, receiver_id: doctorId, appointment_id: appointmentId }),
+      body: JSON.stringify({
+        caller_id: Number(doctorId),
+        receiver_id: Number(patientId),
+        appointment_id: Number(appointmentId),
+      }),
     })
       .then(r => r.json())
       .then(data => {
-        // room_id can be used to join a specific room if backend supports it
-        console.log('Call initiated:', data);
+        if (data?.room_id) {
+          setRoomId(data.room_id);
+          // Step 2: Join the WebSocket room using room_id
+          openCallSocket(data.room_id);
+        } else {
+          setInitiateError(data?.message || 'Failed to get room_id');
+        }
       })
-      .catch(() => {});
-
-    // Open WebSocket signaling channel
-    try {
-      const ws = new WebSocket(`${WS_BASE}/ws/call/${patientId}`);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setWsStatus('connected');
-        setCallStatus('connected');
-        // Send call-start signal to doctor
-        ws.send(JSON.stringify({
-          type: 'call-start',
-          to: String(doctorId),
-          from: String(patientId),
-          appointment_id: appointmentId,
-        }));
-      };
-
-      ws.onmessage = (ev) => {
-        try {
-          const data = JSON.parse(ev.data);
-          if (data.type === 'call-accepted') setCallStatus('connected');
-          if (data.type === 'call-ended') { setCallStatus('ended'); onEnd(); }
-          // WebRTC signaling
-          handleSignal(data);
-        } catch (_) {}
-      };
-
-      ws.onerror = () => setWsStatus('disconnected');
-      ws.onclose = () => setWsStatus('disconnected');
-    } catch (_) {}
+      .catch(err => setInitiateError('Network error: could not initiate call'));
 
     return () => {
       try { wsRef.current?.close(); } catch (_) {}
@@ -88,10 +69,44 @@ export default function VideoCall({
     };
   }, [patientId, doctorId]);
 
+  const openCallSocket = (room: string) => {
+    try {
+      // Connect to the room-specific WebSocket channel
+      const ws = new WebSocket(`${WS_BASE}/ws/call/${room}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsStatus('connected');
+        setCallStatus('connected');
+        // Announce presence in the room
+        ws.send(JSON.stringify({
+          type: 'join',
+          room_id: room,
+          user_id: String(patientId),
+          role: 'patient',
+        }));
+      };
+
+      ws.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === 'call-accepted' || data.type === 'joined') setCallStatus('connected');
+          if (data.type === 'call-ended' || data.type === 'leave') { setCallStatus('ended'); onEnd(); }
+          handleSignal(data);
+        } catch (_) {}
+      };
+
+      ws.onerror = () => setWsStatus('disconnected');
+      ws.onclose = () => setWsStatus('disconnected');
+    } catch (_) {
+      setWsStatus('disconnected');
+    }
+  };
+
   const handleSignal = (data: any) => {
-    // WebRTC signaling — requires react-native-webrtc installed
-    // If you install it: npx expo install react-native-webrtc
-    // Then uncomment and use RTCPeerConnection here
+    // WebRTC signaling — requires react-native-webrtc
+    // Install: npx expo install react-native-webrtc
+    // Then wire RTCPeerConnection offer/answer/ice-candidate here
   };
 
   const sendSignal = (payload: object) => {
@@ -102,7 +117,7 @@ export default function VideoCall({
   };
 
   const endCall = () => {
-    sendSignal({ type: 'call-ended', to: String(doctorId), from: String(patientId) });
+    sendSignal({ type: 'leave', room_id: roomId, user_id: String(patientId) });
     try { wsRef.current?.close(); } catch (_) {}
     onEnd();
   };
@@ -137,8 +152,22 @@ export default function VideoCall({
             {callStatus === 'calling' ? 'Ringing...' : callStatus === 'connected' ? 'Connected' : 'Disconnected'}
           </Text>
         </View>
+        {roomId ? (
+          <View style={styles.roomBadge}>
+            <Text style={styles.roomLabel}>ROOM</Text>
+            <Text style={styles.roomId}>{roomId}</Text>
+          </View>
+        ) : initiateError ? (
+          <View style={styles.errorBadge}>
+            <Text style={styles.errorText}>⚠ {initiateError}</Text>
+          </View>
+        ) : (
+          <View style={styles.roomBadge}>
+            <Text style={styles.roomLabel}>Getting room...</Text>
+          </View>
+        )}
         <Text style={styles.videoNote}>
-          📹 Video stream requires react-native-webrtc{'\n'}Ask your backend dev to confirm WebRTC support
+          📹 Video stream requires react-native-webrtc{'\n'}Run: npx expo install react-native-webrtc
         </Text>
       </View>
 
@@ -173,10 +202,10 @@ export default function VideoCall({
         </TouchableOpacity>
       </View>
 
-      {/* WS status bar */}
+      {/* Status bar */}
       <View style={styles.statusBar}>
         <Text style={styles.statusBarText}>
-          Signal: {wsStatus}  •  Patient: {patientId}  •  Doctor: {doctorId}
+          Signal: {wsStatus}  •  Room: {roomId ?? 'pending'}  •  Appt: {appointmentId}
         </Text>
       </View>
     </RNSSafeAreaView>
@@ -218,9 +247,21 @@ const styles = StyleSheet.create({
   dotGreen: { backgroundColor: '#22C55E' },
   dotGray: { backgroundColor: '#94A3B8' },
   statusPillText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  roomBadge: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8,
+    alignItems: 'center', marginTop: 4,
+  },
+  roomLabel: { color: 'rgba(255,255,255,0.45)', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 2 },
+  roomId: { color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
+  errorBadge: {
+    backgroundColor: 'rgba(239,68,68,0.15)',
+    borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, marginTop: 4,
+  },
+  errorText: { color: '#FCA5A5', fontSize: 12, fontWeight: '600', textAlign: 'center' },
   videoNote: {
-    color: 'rgba(255,255,255,0.4)', fontSize: 11, textAlign: 'center',
-    marginTop: 16, lineHeight: 18, paddingHorizontal: 32,
+    color: 'rgba(255,255,255,0.3)', fontSize: 11, textAlign: 'center',
+    marginTop: 12, lineHeight: 18, paddingHorizontal: 32,
   },
 
   localPreview: {

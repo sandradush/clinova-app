@@ -82,7 +82,7 @@ export default function Register({ onCancel }: Props) {
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView style={styles.scroll} contentContainerStyle={styles.card} keyboardShouldPersistTaps="handled">
           <View style={styles.headerRow}>
-            <View style={styles.logo}><Text style={styles.logoMark}>CU</Text></View>
+            <View style={styles.logo}><Text style={styles.logoMark}>SH</Text></View>
             <Text style={styles.cardTitle}>Create account</Text>
           </View>
 

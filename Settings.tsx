@@ -115,7 +115,7 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalContent}>
-              <Text style={styles.policyTitle}>Cura Privacy Policy</Text>
+              <Text style={styles.policyTitle}>Smarthealth Privacy Policy</Text>
               
               <View style={styles.policySection}>
                 <Text style={styles.sectionNumber}>1.</Text>
@@ -161,7 +161,7 @@ export default function Settings({ email, onLogout, onBack }: { email?: string; 
                 <Text style={styles.sectionNumber}>6.</Text>
                 <View style={styles.sectionContent}>
                   <Text style={styles.sectionHeading}>Contact Us</Text>
-                  <Text style={styles.sectionText}>For privacy concerns, contact us at privacy@cura.com</Text>
+                  <Text style={styles.sectionText}>For privacy concerns, contact us at privacy@smarthealth.com</Text>
                 </View>
               </View>
             </ScrollView>

@@ -106,10 +106,10 @@ export default function App() {
 
           <View style={styles.heroSection}>
             <View style={styles.logoCircle}>
-              <Text style={styles.logoMark}>CU</Text>
+              <Text style={styles.logoMark}>SH</Text>
             </View>
             <Text style={styles.heroTitle}>Welcome back</Text>
-            <Text style={styles.heroSub}>Sign in to your Cura account</Text>
+            <Text style={styles.heroSub}>Sign in to your Smarthealth account</Text>
           </View>
 
           <View style={styles.card}>

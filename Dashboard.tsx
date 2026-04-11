@@ -144,7 +144,13 @@ export default function Dashboard(props: Props) {
                     <Image source={{ uri: avatar }} style={styles.avatar} />
                   </TouchableOpacity>
                   <View style={styles.nameBlock}>
-                    <Text style={styles.sub}>{email}</Text>
+                    <View style={styles.brandRow}>
+                      <View style={styles.brandLogo}>
+                        <Text style={styles.brandLogoText}>SH</Text>
+                      </View>
+                      <Text style={styles.brandName}>Smarthealth</Text>
+                    </View>
+                    <Text style={styles.sub}>{displayName}</Text>
                     <View style={styles.statusBadge}>
                       <View style={styles.statusDot} />
                       <Text style={styles.statusText}>Online</Text>
@@ -322,6 +328,32 @@ const styles = StyleSheet.create({
   },
   nameBlock: {
     flex: 1,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    gap: 8,
+  },
+  brandLogo: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#001e3c',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  brandLogoText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  brandName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#001e3c',
+    letterSpacing: -0.3,
   },
   name: { 
     fontSize: 20, 

@@ -11,9 +11,9 @@ const HomePage = ({ navigation }: any) => {
       <StatusBar barStyle="light-content" backgroundColor={PRIMARY} />
       <View style={styles.topSection}>
         <View style={styles.logoWrap}>
-          <Image source={require('./assets/cura-logo.png')} style={styles.logo} />
+        <Image source={require('./assets/icon.png')} style={styles.logo} />
         </View>
-        <Text style={styles.brand}>Cura</Text>
+        <Text style={styles.brand}>Smarthealth</Text>
         <Text style={styles.tagline}>Your health, our priority</Text>
       </View>
 

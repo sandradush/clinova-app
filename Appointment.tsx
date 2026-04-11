@@ -343,7 +343,7 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
           {videoTarget ? (
             <VideoCall
               name={videoTarget.title}
-              patientId={userId ?? ''}
+              patientId={userId}
               doctorId={videoTarget.doctor_id ?? ''}
               appointmentId={videoTarget.id}
               onEnd={() => setVideoTarget(null)}
