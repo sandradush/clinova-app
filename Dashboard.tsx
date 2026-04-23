@@ -87,45 +87,39 @@ export default function Dashboard(props: Props) {
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // unread count based on real is_read field from API
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   const fetchNotifications = async () => {
     if (!userId) return;
     setNotifLoading(true);
     try {
-      const resp = await fetch(`https://clinic-backend-s2lx.onrender.com/api/notifications/user/${userId}`, { method: 'GET', headers: { accept: 'application/json' } });
+      const resp = await fetch(
+        `https://clinic-backend-s2lx.onrender.com/api/notifications/user/${userId}`,
+        { method: 'GET', headers: { accept: 'application/json' } }
+      );
       const data = await resp.json();
       if (resp.ok && Array.isArray(data)) {
-        // merge server notifications with local ones (avoid duplicates)
-        setNotifications(prev => {
-          const byId = new Map<string, any>();
-          data.forEach((d: any) => byId.set(String(d.id), d));
-          prev.forEach((p: any) => { if (!byId.has(String(p.id))) byId.set(String(p.id), p); });
-          return Array.from(byId.values());
-        });
-      } else {
-        setNotifications(prev => prev);
+        setNotifications(data);
       }
-    } catch (e) {
-      // ignore network errors, keep existing
-    } finally {
-      setNotifLoading(false);
-    }
+    } catch (e) {}
+    finally { setNotifLoading(false); }
   };
 
   const openNotifications = async () => {
     setNotifOpen(true);
     await fetchNotifications();
-    // mark all as read locally and best-effort on server
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    try {
-      if (userId) await fetch(`https://clinic-backend-s2lx.onrender.com/api/notifications/mark-read`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId }) });
-    } catch (e) {
-      // ignore
-    }
   };
 
   const closeNotifications = () => setNotifOpen(false);
+
+  // poll notifications every 30s
+  useEffect(() => {
+    if (!userId) return;
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [userId]);
 
   useEffect(() => {
     fetchAppointmentStats();
@@ -144,12 +138,6 @@ export default function Dashboard(props: Props) {
                     <Image source={{ uri: avatar }} style={styles.avatar} />
                   </TouchableOpacity>
                   <View style={styles.nameBlock}>
-                    <View style={styles.brandRow}>
-                      <View style={styles.brandLogo}>
-                        <Text style={styles.brandLogoText}>SH</Text>
-                      </View>
-                      <Text style={styles.brandName}>Smarthealth</Text>
-                    </View>
                     <Text style={styles.sub}>{displayName}</Text>
                     <View style={styles.statusBadge}>
                       <View style={styles.statusDot} />
@@ -157,11 +145,11 @@ export default function Dashboard(props: Props) {
                     </View>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.notificationBtn} onPress={openNotifications} accessibilityLabel="Notifications">
-                  <Text style={styles.notificationIconSmall}>🔔</Text>
+                <TouchableOpacity style={styles.notifBell} onPress={openNotifications}>
+                  <Text style={styles.notifBellIcon}>🔔</Text>
                   {unreadCount > 0 && (
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>{unreadCount}</Text>
+                    <View style={styles.notifBadge}>
+                      <Text style={styles.notifBadgeText}>{unreadCount}</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -221,7 +209,7 @@ export default function Dashboard(props: Props) {
             </>
           )}
           {tab === 'appointment' && <Appointment userId={userId} onBack={() => setTab('home')} />}
-          {tab === 'setting' && <Settings email={email} onLogout={onLogout} onBack={() => setTab('home')} />}
+          {tab === 'setting' && <Settings email={email} onLogout={onLogout} onBack={() => setTab('home')} userId={userId} />}
           {tab === 'profile' && <Profile name={name} email={email} avatarUri={profileImage} userId={userId} patient={userPatient} onBack={() => setTab('home')} onLogout={onLogout} onSave={(p:any)=>{ if (onProfileSave) onProfileSave(p); fetchProfileImage?.(); }} />}
           {tab === 'prescription' && <Prescription onClose={() => setTab('home')} />}
         </View>
@@ -230,26 +218,54 @@ export default function Dashboard(props: Props) {
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Notifications</Text>
+                <Text style={styles.modalTitle}>🔔 Notifications</Text>
                 <Pressable onPress={closeNotifications} style={styles.modalClose}>
-                  <Text style={styles.modalCloseText}>Close</Text>
+                  <Text style={styles.modalCloseText}>✕</Text>
                 </Pressable>
               </View>
               {notifLoading ? (
-                <View style={{ padding: 20 }}>
-                  <ActivityIndicator />
+                <View style={{ padding: 32, alignItems: 'center' }}>
+                  <ActivityIndicator color="#001e3c" />
+                  <Text style={{ color: '#64748B', marginTop: 10, fontSize: 13 }}>Loading...</Text>
                 </View>
               ) : (
                 <FlatList
                   data={notifications}
-                  keyExtractor={(i, idx) => String(i.id || idx)}
+                  keyExtractor={(item, idx) => String(item.id || item.notification_id || idx)}
+                  contentContainerStyle={{ paddingBottom: 12 }}
                   renderItem={({ item }) => (
-                    <View style={styles.notifItem}>
-                      <Text style={styles.notifTitle}>{item.title || item.message || 'Notification'}</Text>
-                      <Text style={styles.notifTime}>{item.time || item.created_at || ''}</Text>
+                    <View style={[styles.notifItem, !item.is_read && styles.notifItemUnread]}>
+                      <View style={styles.notifRow}>
+                        <View style={styles.notifDotWrap}>
+                          {!item.is_read && <View style={styles.notifUnreadDot} />}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.notifTitle}>
+                            {item.title || item.message || item.content || 'Notification'}
+                          </Text>
+                          {item.sent_by && (
+                            <Text style={styles.notifSentBy}>From: {item.sent_by}</Text>
+                          )}
+                          <Text style={styles.notifTime}>
+                            {item.created_at
+                              ? new Date(item.created_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                              : item.time || ''}
+                          </Text>
+                        </View>
+                        <View style={[styles.notifReadPill, item.is_read && styles.notifReadPillRead]}>
+                          <Text style={[styles.notifReadText, item.is_read && styles.notifReadTextRead]}>
+                            {item.is_read ? 'Read' : 'New'}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   )}
-                  ListEmptyComponent={<Text style={styles.emptyText}>No notifications</Text>}
+                  ListEmptyComponent={
+                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                      <Text style={{ fontSize: 36, marginBottom: 12 }}>🔕</Text>
+                      <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600' }}>No notifications yet</Text>
+                    </View>
+                  }
                 />
               )}
             </View>
@@ -382,38 +398,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  notificationBtn: {
-    position: 'relative',
-    padding: 8,
+  notifBell: { position: 'relative', padding: 8 },
+  notifBellIcon: { fontSize: 20 },
+  notifBadge: {
+    position: 'absolute', top: 2, right: 2,
+    backgroundColor: '#EF4444', borderRadius: 9,
+    minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3,
   },
-  notificationIcon: {
-    fontSize: 24,
+  notifBadgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  notifItem: {
+    paddingVertical: 12, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: '#F1F5F9',
   },
-  notificationLabel: {
-    color: '#001e3c',
-    fontWeight: '700',
-    fontSize: 14,
+  notifItemUnread: { backgroundColor: '#F8FAFF' },
+  notifRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  notifDotWrap: { width: 10, paddingTop: 5 },
+  notifUnreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#001e3c' },
+  notifTitle: { fontSize: 14, fontWeight: '600', color: '#1E293B', marginBottom: 3 },
+  notifSentBy: { fontSize: 12, color: '#001e3c', fontWeight: '600', marginBottom: 2 },
+  notifTime: { fontSize: 11, color: '#94A3B8' },
+  notifReadPill: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20,
+    backgroundColor: '#DBEAFE', alignSelf: 'flex-start',
   },
-  notificationIconSmall: {
-    fontSize: 18,
-    color: '#000000',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: '#EF4444',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
+  notifReadPillRead: { backgroundColor: '#F1F5F9' },
+  notifReadText: { fontSize: 10, fontWeight: '700', color: '#001e3c' },
+  notifReadTextRead: { color: '#94A3B8' },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -579,21 +589,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  navIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 3,
-    backgroundColor: 'transparent',
-  },
-  navIconWrapActive: {
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  navIcon: {
-    fontSize: 20,
-  },
   navLabel: {
     fontSize: 10,
     color: 'rgba(255,255,255,0.5)',
@@ -684,8 +679,6 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#1E293B' },
   modalClose: { padding: 6 },
   modalCloseText: { color: '#041430', fontWeight: '700' },
-  notifItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  notifTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B' },
-  notifTime: { fontSize: 12, color: '#64748B', marginTop: 4 },
+
   emptyText: { padding: 20, textAlign: 'center', color: '#64748B' },
 });

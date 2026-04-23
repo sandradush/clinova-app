@@ -1,468 +1,314 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ScrollView,
-  ActivityIndicator,
-  Platform,
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  Alert, ScrollView, ActivityIndicator,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useStripe } from '@stripe/stripe-react-native';
+
+const PRIMARY = '#001e3c';
+const BASE = 'https://clinic-backend-s2lx.onrender.com';
 
 type Props = {
-  route?: any;
-  navigation?: any;
+  appointmentId: string | number;
+  patientId: string | number;
+  doctorName?: string;
+  appointmentDate?: string;
+  fee?: number;
+  onClose: () => void;
 };
 
-export default function Payment({route}: Props) {
-  const appointment = route?.params?.appointment ?? {
-    id: 'APPT-001',
-    patientName: 'John Doe',
-    fee: 100,
-    scheduled: '2026-02-28 10:00',
-  };
+type PayStatus = 'idle' | 'loading' | 'success' | 'failed';
 
-  const formatFee = (value: number | string) => {
-    const amt = typeof value === 'string' ? Number(value) : value;
+export default function Payment({
+  appointmentId, patientId, doctorName, appointmentDate, fee = 0, onClose,
+}: Props) {
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const [status, setStatus] = useState<PayStatus>('idle');
+  const [paidAmount, setPaidAmount] = useState(String(fee || ''));
+
+  const handlePay = async () => {
+    if (!paidAmount || Number(paidAmount) <= 0) {
+      Alert.alert('Invalid amount', 'Please enter a valid amount greater than 0.');
+      return;
+    }
+    setStatus('loading');
+
     try {
-      // Display as plain integer followed by 'frw' (lowercase), e.g. "100 frw"
-      const n = Number.isFinite(Number(amt)) ? Math.round(Number(amt)) : 0;
-      return `${n} frw`;
-    } catch (e) {
-      const n = Number.isFinite(Number(amt)) ? Math.round(Number(amt)) : 0;
-      return `${n} frw`;
-    }
-  };
+      // Step 1 — Call backend to create Stripe PaymentIntent
+      // Try both endpoint variants — initiate first, fallback to create-payment-intent
+      const safeJson = async (r: Response) => {
+        const text = await r.text();
+        try { return JSON.parse(text); }
+        catch { return { _raw: text, _status: r.status }; }
+      };
 
-  const [hasPaid, setHasPaid] = useState(false);
-    const [adminApproved, setAdminApproved] = useState(false);
-  const [doctorStarted, setDoctorStarted] = useState(false);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [loadingPayment, setLoadingPayment] = useState(false);
-  const [paymentResponse, setPaymentResponse] = useState<any | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState<string>(String(appointment.fee || 0));
-  const [polling, setPolling] = useState(false);
-  const pollRef = useRef<number | null>(null);
-  const [pollTries, setPollTries] = useState(0);
-
-  const pushMessage = (m: string) => {
-    setMessages(prev => [m, ...prev]);
-  };
-
-  const isPaid =
-    hasPaid ||
-    Boolean(
-      paymentResponse?.payment?.status &&
-        ['pending', 'completed', 'success', 'paid'].includes(
-          String(paymentResponse.payment.status).toLowerCase(),
-        ),
-    );
-
-  // derive admin approval from server response if available
-  const serverAdminApproved = Boolean(
-    paymentResponse?.payment?.admin_approved ||
-      (paymentResponse?.payment?.status && String(paymentResponse.payment.status).toLowerCase() === 'approved'),
-  );
-
-  const effectiveAdminApproved = adminApproved || serverAdminApproved;
-
-  const handlePatientPay = async () => {
-    if (hasPaid || loadingPayment) {
-      Alert.alert('Payment', 'Payment already in progress or completed.');
-      return;
-    }
-    const amount = Number((paymentAmount || '').toString().replace(/,/g, '').trim());
-    const number = appointment.number || appointment.phone || '0788698529';
-    const patient_id = appointment.patient_id || appointment.patientId || 'patient_39';
-    const appointment_id = appointment.dbId || appointment.appointment_id || appointment.id || null;
-
-    // Basic validation
-    if (!Number.isFinite(amount) || amount <= 0) {
-      Alert.alert('Payment', 'Appointment fee is missing or must be greater than 0.');
-      return;
-    }
-    if (!number) {
-      Alert.alert('Payment', 'Patient phone number is missing.');
-      return;
-    }
-    if (!patient_id) {
-      Alert.alert('Payment', 'Patient id is missing.');
-      return;
-    }
-    if (!appointment_id) {
-      Alert.alert('Payment', 'Appointment id is missing. Use the DB appointment id.');
-      return;
-    }
-
-    setLoadingPayment(true);
-    pushMessage('Patient: Initiating payment...');
-    console.log('Payment: initiating', { amount, number, patient_id, appointment_id, appointment });
-    try {
-      const host = Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001';
-      const resp = await fetch(`${host}/api/payment/initiate`, {
+      const resp = await fetch(`${BASE}/api/payments/create-payment-intent`, {
         method: 'POST',
-        headers: { accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, number, patient_id, appointment_id }),
+        headers: { 'Content-Type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify({
+          amount: Number(paidAmount),
+          currency: 'RWF',
+          patient_id: Number(patientId),
+          appointment_id: Number(appointmentId),
+        }),
       });
-        const text = await resp.text();
-        let data: any = null;
-        try {
-          data = text ? JSON.parse(text) : null;
-        } catch (err) {
-          // non-json response
-          data = { raw: text };
-        }
 
-        // Log HTTP status and raw response for easier debugging
-        pushMessage(`HTTP ${resp.status} returned from payment initiate`);
-        console.log('Payment response status', resp.status, 'body:', text);
+      const data = await safeJson(resp);
 
-        if (resp.ok) {
-        setPaymentResponse(data);
-        setHasPaid(true);
-        const provStatus = data?.provider?.status || data?.payment?.status || 'pending';
-        const provRef = data?.provider?.ref || data?.payment?.provider_ref || data?.payment?.ref || '';
-        pushMessage(`Patient: Payment submitted for appointment ${appointment_id}. Provider status: ${provStatus}`);
-        if (provRef) pushMessage(`Provider ref: ${provRef}`);
-        Alert.alert('Payment', 'Payment submitted. Waiting admin approval.');
-      } else {
-          const msg = data?.message || data?.raw || `Payment initiation failed (status ${resp.status})`;
-          pushMessage('Patient: Payment initiation failed — ' + msg);
-          Alert.alert('Payment error', msg);
+      if (data._raw) {
+        setStatus('failed');
+        Alert.alert('Payment Error', `Server returned non-JSON (status ${data._status}).\n\nPreview: ${String(data._raw).slice(0, 120)}`);
+        return;
       }
+
+      if (!resp.ok) {
+        setStatus('failed');
+        Alert.alert('Payment Error', data?.detail || data?.message || `Server error: ${resp.status}`);
+        return;
+      }
+
+      // Response: { paymentIntent: 'pi_...secret...', publishableKey: 'pk_test_...' }
+      const paymentIntent = data.paymentIntent || data.client_secret || data.clientSecret;
+
+      if (!paymentIntent) {
+        setStatus('failed');
+        Alert.alert('Payment Error', `Missing client secret. Server responded with:\n${JSON.stringify(data)}`);
+        return;
+      }
+
+      // Step 2 — Init Stripe PaymentSheet using the real publishableKey from server
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'Smarthealth',
+        paymentIntentClientSecret: paymentIntent,
+        allowsDelayedPaymentMethods: false,
+        defaultBillingDetails: { name: 'Patient' },
+      });
+
+      if (initError) {
+        setStatus('failed');
+        Alert.alert('Stripe Error', initError.message);
+        return;
+      }
+
+      // Step 3 — Present Stripe payment sheet
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === 'Canceled') {
+          setStatus('idle');
+        } else {
+          setStatus('failed');
+          Alert.alert('Payment Failed', presentError.message);
+        }
+        return;
+      }
+
+      // Step 4 — Success
+      setStatus('success');
+
     } catch (e: any) {
-      pushMessage('Patient: Payment error — network issue');
-      console.error('Payment error', e);
-      Alert.alert('Payment error', e?.message || String(e));
-    } finally {
-      setLoadingPayment(false);
+      setStatus('failed');
+      Alert.alert('Network Error', e?.message || 'Could not connect to payment server. Please try again.');
     }
-  };
-
-  const handleAdminApprove = () => {
-    if (!hasPaid) {
-      Alert.alert('Admin', 'Patient has not paid yet.');
-      return;
-    }
-    if (adminApproved) {
-      Alert.alert('Admin', 'Payment already approved.');
-      return;
-    }
-    setAdminApproved(true);
-    pushMessage('Admin: Payment approved and confirmed. Notification sent to doctor.');
-    Alert.alert('Admin', 'Payment approved. Doctor notified.');
-  };
-
-  const clearPolling = () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    setPolling(false);
-    setPollTries(0);
-  };
-
-  const checkPaymentEvent = async (ref: string, client: string, kind = 'CASHIN') => {
-    try {
-      const host = Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001';
-      const params = new URLSearchParams({ ref, kind, client, status: 'pending' });
-      const url = `${host}/api/payment/event?${params.toString()}`;
-      const resp = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
-      const json = await resp.json();
-      pushMessage(`Event check: HTTP ${resp.status}`);
-      console.log('Payment event check', url, resp.status, json);
-      const tx = json?.transactions?.[0]?.data;
-      if (tx && tx.status) {
-        const st = String(tx.status).toLowerCase();
-        if (['completed', 'success', 'paid'].includes(st)) {
-          setPaymentResponse((prev: any) => {
-            const next = { ...(prev || {}) };
-            next.payment = next.payment || {};
-            next.payment.status = tx.status;
-            return next;
-          });
-          setHasPaid(true);
-          pushMessage(`Transaction event: status=${tx.status}`);
-          clearPolling();
-          return true;
-        }
-      }
-    } catch (err) {
-      console.error('checkPaymentEvent error', err);
-      pushMessage('Event check error');
-    }
-    return false;
-  };
-
-  const startPolling = (ref: string, client: string, kind = 'CASHIN') => {
-    if (pollRef.current) return;
-    setPolling(true);
-    setPollTries(0);
-    pollRef.current = setInterval(async () => {
-      setPollTries(t => t + 1);
-      const tries = pollTries + 1;
-      const done = await checkPaymentEvent(ref, client, kind);
-      if (done || tries >= 12) {
-        clearPolling();
-        if (!done) pushMessage('Event polling ended without success');
-      }
-    }, 3000) as unknown as number;
-  };
-
-  useEffect(() => {
-    return () => clearPolling();
-  }, []);
-
-  const fetchPaymentStatus = async (paymentId?: string, appointmentId?: string) => {
-    try {
-      const host = Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001';
-      const tries: Array<{url: string; parse: (json: any) => any}> = [];
-
-      if (paymentId) {
-        tries.push({
-          url: `${host}/api/payment/${encodeURIComponent(paymentId)}`,
-          parse: (json: any) => json,
-        });
-        tries.push({
-          url: `${host}/api/payment/status?payment_id=${encodeURIComponent(paymentId)}`,
-          parse: (json: any) => json,
-        });
-      }
-      if (appointmentId) {
-        tries.push({
-          url: `${host}/api/payment/by-appointment/${encodeURIComponent(appointmentId)}`,
-          parse: (json: any) => json,
-        });
-        tries.push({
-          url: `${host}/api/payment?appointment_id=${encodeURIComponent(appointmentId)}`,
-          parse: (json: any) => json,
-        });
-      }
-
-      // last resort: check event by provider ref if available
-      const provRef = paymentResponse?.provider?.ref || paymentResponse?.payment?.provider_ref || paymentResponse?.payment?.ref;
-      const client = appointment.number || appointment.phone || '0788698529';
-      if (provRef) {
-        const params = new URLSearchParams({ ref: provRef, kind: paymentResponse?.provider?.kind || paymentResponse?.payment?.provider_kind || 'CASHIN', client, status: 'pending' });
-        tries.push({ url: `${host}/api/payment/event?${params.toString()}`, parse: (json: any) => json });
-      }
-
-      for (const t of tries) {
-        try {
-          const resp = await fetch(t.url, { headers: { accept: 'application/json' } });
-          if (!resp.ok) continue;
-          const json = await resp.json();
-          // normalize possible payment shape
-          const maybePayment = json?.payment || (json?.data && json.data.payment) || json;
-          if (maybePayment) {
-            setPaymentResponse(prev => ({ ...(prev || {}), payment: maybePayment }));
-            const approved = Boolean(maybePayment.admin_approved || String(maybePayment.status).toLowerCase() === 'approved');
-            if (approved) setAdminApproved(true);
-            pushMessage(`Status refresh: found payment data via ${t.url}`);
-            return { ok: true, url: t.url, data: json };
-          }
-          // event response
-          if (json?.transactions?.length) {
-            const tx = json.transactions[0].data;
-            if (tx) {
-              // if event shows admin approval in metadata
-              if (tx.status && String(tx.status).toLowerCase() === 'approved') {
-                setAdminApproved(true);
-                pushMessage('Status refresh: admin approved (via event)');
-                return { ok: true, url: t.url, data: json };
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('fetchPaymentStatus try error', err);
-        }
-      }
-      pushMessage('Status refresh: no payment record found on server');
-      return { ok: false };
-    } catch (err) {
-      console.error('fetchPaymentStatus error', err);
-      pushMessage('Status refresh error');
-      return { ok: false, error: err };
-    }
-  };
-
-  const handleDoctorCheckAndStart = () => {
-    if (!adminApproved) {
-      Alert.alert('Doctor', 'Waiting for payment approval by admin.');
-      pushMessage('Doctor: Checked payment — not approved yet.');
-      return;
-    }
-    if (doctorStarted) {
-      Alert.alert('Doctor', 'Consultation already started.');
-      return;
-    }
-    setDoctorStarted(true);
-    pushMessage('Doctor: Approved and started the consultation process.');
-    Alert.alert('Doctor', 'Consultation started.');
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Payment / Consultation Flow</Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onClose} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Pay Fee</Text>
+        <View style={{ width: 60 }} />
+      </View>
 
-        <View style={styles.card}>
-          <Text style={styles.label}>Appointment ID: {appointment.id}</Text>
-          <Text style={styles.label}>Patient: {appointment.patientName}</Text>
-          <Text style={styles.label}>Schedule: {appointment.scheduled}</Text>
-          <Text style={styles.label}>Fee: {formatFee(paymentAmount)}</Text>
+      <ScrollView contentContainerStyle={styles.scroll}>
 
-          <View style={{marginTop: 8}}>
-            <Text style={[styles.label, {marginBottom: 6}]}>Enter amount to pay</Text>
-            <TextInput
-              style={styles.input}
-              value={paymentAmount}
-              onChangeText={setPaymentAmount}
-              keyboardType="numeric"
-              placeholder="Amount (e.g. 100)"
-              returnKeyType="done"
-            />
+        {/* ── Success screen ── */}
+        {status === 'success' ? (
+          <View style={styles.successBox}>
+            <View style={styles.successIconBox}>
+              <Text style={styles.successIcon}>✓</Text>
+            </View>
+            <Text style={styles.successTitle}>Payment Successful!</Text>
+            <Text style={styles.successSub}>
+              Your consultation fee of {paidAmount} RWF has been paid successfully.{'\n'}
+              Your appointment is now confirmed.
+            </Text>
+            <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+              <Text style={styles.doneBtnText}>Done</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <View style={styles.statusRow}>
-          <Text style={styles.status}>Paid: {isPaid ? 'Yes' : 'No'}</Text>
-          <Text style={styles.status}>Admin Approved: {adminApproved ? 'Yes' : 'No'}</Text>
-          <Text style={styles.status}>Doctor Started: {doctorStarted ? 'Yes' : 'No'}</Text>
-        </View>
+        ) : (
+          <>
+            {/* Appointment summary */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryIconBox}>
+                <Text style={styles.summaryIconText}>🏥</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.summaryDoctor}>{doctorName || 'Doctor'}</Text>
+                <Text style={styles.summaryDate}>{appointmentDate || `Appointment #${appointmentId}`}</Text>
+              </View>
+            </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Patient Actions</Text>
+            {/* Amount */}
+            <View style={styles.amountCard}>
+              <Text style={styles.amountLabel}>CONSULTATION FEE (RWF)</Text>
+              <View style={styles.amountRow}>
+                <TextInput
+                  style={styles.amountInput}
+                  value={paidAmount}
+                  onChangeText={setPaidAmount}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#CBD5E1"
+                />
+                <Text style={styles.amountCurrency}>RWF</Text>
+              </View>
+              <Text style={styles.amountNote}>Secure payment powered by Stripe</Text>
+            </View>
+
+            {/* What you get */}
+            <View style={styles.infoCard}>
+              <Text style={styles.infoTitle}>What's included</Text>
+              {[
+                '✓  Video or voice consultation with your doctor',
+                '✓  Digital prescription after consultation',
+                '✓  Medical record updated automatically',
+                '✓  Secure payment — no card details stored',
+              ].map((line, i) => (
+                <Text key={i} style={styles.infoLine}>{line}</Text>
+              ))}
+            </View>
+
+            {/* Stripe badge */}
+            <View style={styles.stripeBadge}>
+              <Text style={styles.stripeLock}>🔒</Text>
+              <Text style={styles.stripeText}>
+                Payments are processed securely by{' '}
+                <Text style={styles.stripeHighlight}>Stripe</Text>.
+                Your card details are never stored on our servers.
+              </Text>
+            </View>
+
+            {/* Pay button */}
             <TouchableOpacity
-              style={[styles.buttonPrimary, loadingPayment && styles.buttonDisabled]}
-              onPress={handlePatientPay}
-              disabled={loadingPayment}
+              style={[styles.payBtn, status === 'loading' && { opacity: 0.7 }]}
+              onPress={handlePay}
+              disabled={status === 'loading'}
+              activeOpacity={0.85}
             >
-              {loadingPayment ? (
-                <ActivityIndicator color="#fff" />
+              {status === 'loading' ? (
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.buttonText}>Pay Consultation Fee</Text>
+                <Text style={styles.payBtnText}>Pay {paidAmount ? `${paidAmount} RWF` : 'Now'} with Stripe</Text>
               )}
             </TouchableOpacity>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Admin Actions</Text>
-          <TouchableOpacity style={styles.buttonSecondary} onPress={handleAdminApprove}>
-            <Text style={styles.buttonText}>Admin: Approve Payment</Text>
-          </TouchableOpacity>
-        </View>
+            {status === 'failed' && (
+              <Text style={styles.errorText}>
+                Payment failed. Please try again or use a different card.
+              </Text>
+            )}
+          </>
+        )}
 
-        {paymentResponse ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Payment Result</Text>
-            <View style={{padding:8, backgroundColor:'#fff', borderRadius:8, borderWidth:1, borderColor:'#eef2ff'}}>
-              <Text style={styles.label}>Payment ID: {paymentResponse?.payment?.id ?? paymentResponse?.payment?.ref ?? '-'}</Text>
-                  <Text style={styles.label}>Payment Status: {paymentResponse?.payment?.status ?? paymentResponse?.provider?.status ?? '-'}</Text>
-                  <Text style={styles.label}>Admin Approved: {effectiveAdminApproved ? 'Yes' : 'No'}</Text>
-              <Text style={styles.label}>Provider: {paymentResponse?.provider?.provider ?? paymentResponse?.payment?.provider_kind ?? '-'}</Text>
-              <Text style={styles.label}>Provider Ref: {paymentResponse?.provider?.ref ?? paymentResponse?.payment?.provider_ref ?? '-'}</Text>
-              <Text style={styles.label}>Appointment ID: {paymentResponse?.payment?.appointment_id ?? '-'}</Text>
-                  <Text style={[styles.label, {marginTop:8, fontWeight:'600'}]}>Raw response</Text>
-                  <ScrollView style={{maxHeight:120}}>
-                    <Text style={{fontSize:12, color:'#111'}}>{JSON.stringify(paymentResponse, null, 2)}</Text>
-                  </ScrollView>
-                  <View style={{marginTop:10}}>
-                    {polling ? (
-                      <Text style={{fontSize:13, color:'#6b7280'}}>Checking transaction events...</Text>
-                    ) : (
-                      <TouchableOpacity
-                        style={[styles.buttonSecondary, {marginTop:8}]}
-                        onPress={async () => {
-                          const ref = paymentResponse?.provider?.ref || paymentResponse?.payment?.provider_ref || paymentResponse?.payment?.ref;
-                          const client = appointment.number || appointment.phone || '0788698529';
-                          if (!ref) {
-                            Alert.alert('Check', 'Provider ref is missing in response');
-                            return;
-                          }
-                          pushMessage('Manual event check started');
-                          const done = await checkPaymentEvent(ref, client, paymentResponse?.provider?.kind || paymentResponse?.payment?.provider_kind || 'CASHIN');
-                          if (!done) pushMessage('Manual check: no completed transaction yet');
-                        }}
-                      >
-                        <Text style={styles.buttonText}>Check Transaction</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                  <View style={{marginTop:8}}>
-                    <TouchableOpacity
-                      style={[styles.buttonSecondary, {marginTop:8}]}
-                      onPress={async () => {
-                        const pid = paymentResponse?.payment?.id;
-                        const appt = paymentResponse?.payment?.appointment_id || appointment.id;
-                        pushMessage('Manual status refresh started');
-                        await fetchPaymentStatus(pid, appt);
-                      }}
-                    >
-                      <Text style={styles.buttonText}>Refresh Status</Text>
-                    </TouchableOpacity>
-                  </View>
-            </View>
-          </View>
-        ) : null}
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Doctor Actions</Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Event Log</Text>
-          {messages.length === 0 ? (
-            <Text style={styles.empty}>No events yet.</Text>
-          ) : (
-            messages.map((m, i) => (
-              <View key={i} style={styles.msgRow}>
-                <Text style={styles.msgText}>{m}</Text>
-              </View>
-            ))
-          )}
-        </View>
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {flex: 1, backgroundColor: '#fff'},
-  container: {padding: 16, paddingBottom: 40},
-  title: {fontSize: 20, fontWeight: '700', marginBottom: 12},
-  card: {padding: 12, borderRadius: 8, backgroundColor: '#f8f8f8', marginBottom: 12},
-  label: {fontSize: 14, marginBottom: 4},
-  statusRow: {flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12},
-  status: {fontSize: 13, fontWeight: '600'},
-  section: {marginBottom: 14},
-  sectionTitle: {fontSize: 16, fontWeight: '700', marginBottom: 8},
-  buttonPrimary: {
-    backgroundColor: '#001e3c',
-    padding: 12,
-    borderRadius: 8,
+  safe: { flex: 1, backgroundColor: '#F8FAFF' },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
+    elevation: 3, shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 4,
+  },
+  backBtn: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#F1F5F9', borderRadius: 10 },
+  backText: { color: PRIMARY, fontWeight: '700', fontSize: 14 },
+  headerTitle: { fontSize: 18, fontWeight: '800', color: PRIMARY },
+
+  scroll: { padding: 16 },
+
+  summaryCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: PRIMARY, borderRadius: 16, padding: 18, marginBottom: 16,
+  },
+  summaryIconBox: {
+    width: 48, height: 48, borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  summaryIconText: { fontSize: 24 },
+  summaryDoctor: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginBottom: 3 },
+  summaryDate: { color: 'rgba(255,255,255,0.65)', fontSize: 12 },
+
+  amountCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, marginBottom: 16,
     alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
-  buttonSecondary: {
-    backgroundColor: '#374151',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
+  amountLabel: {
+    fontSize: 11, fontWeight: '700', color: '#94A3B8',
+    textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8,
   },
-  buttonText: {color: '#fff', fontWeight: '700'},
-  buttonDisabled: {opacity: 0.6},
-  empty: {color: '#6b7280'},
-  msgRow: {paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: '#eee'},
-  msgText: {fontSize: 13},
-  input: {
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: '#fff',
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  amountInput: {
+    fontSize: 42, fontWeight: '800', color: PRIMARY,
+    minWidth: 100, textAlign: 'center',
+    borderBottomWidth: 2, borderBottomColor: '#E2E8F0', paddingBottom: 4,
   },
+  amountCurrency: { fontSize: 20, fontWeight: '700', color: '#94A3B8', marginTop: 8 },
+  amountNote: { fontSize: 12, color: '#94A3B8', marginTop: 4 },
+
+  infoCard: {
+    backgroundColor: '#FFFFFF', borderRadius: 16, padding: 18, marginBottom: 16,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  },
+  infoTitle: { fontSize: 14, fontWeight: '800', color: PRIMARY, marginBottom: 12 },
+  infoLine: { fontSize: 13, color: '#374151', lineHeight: 24 },
+
+  stripeBadge: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: '#F0FDF4', borderRadius: 12, padding: 14,
+    marginBottom: 20, borderWidth: 1, borderColor: '#BBF7D0',
+  },
+  stripeLock: { fontSize: 16 },
+  stripeText: { flex: 1, fontSize: 12, color: '#374151', lineHeight: 18 },
+  stripeHighlight: { fontWeight: '700', color: '#6772E5' },
+
+  payBtn: {
+    backgroundColor: '#6772E5', borderRadius: 16,
+    paddingVertical: 18, alignItems: 'center',
+    shadowColor: '#6772E5', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+  },
+  payBtnText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
+  errorText: { color: '#EF4444', textAlign: 'center', marginTop: 12, fontSize: 13, fontWeight: '600' },
+
+  successBox: { alignItems: 'center', paddingVertical: 60, paddingHorizontal: 24 },
+  successIconBox: {
+    width: 90, height: 90, borderRadius: 45,
+    backgroundColor: '#DCFCE7', alignItems: 'center', justifyContent: 'center', marginBottom: 24,
+  },
+  successIcon: { fontSize: 42, color: '#16A34A' },
+  successTitle: { fontSize: 26, fontWeight: '900', color: '#1E293B', marginBottom: 12 },
+  successSub: { fontSize: 14, color: '#64748B', textAlign: 'center', lineHeight: 22, marginBottom: 32 },
+  doneBtn: {
+    backgroundColor: PRIMARY, borderRadius: 14,
+    paddingVertical: 16, paddingHorizontal: 56, alignItems: 'center',
+  },
+  doneBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

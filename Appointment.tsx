@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, TextInput, Platform, Alert, ScrollView, ActivityIndicator } from 'react-native';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
+import Payment from './Payment';
 import Chat from './Chat';
 import Prescription from './Prescription';
-import VideoCall from './VideoCall';
-import VoiceCall from './VoiceCall';
+
 
 type AppointmentItem = {
   id: string;
@@ -164,14 +164,19 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
       Alert.alert('Error', 'Network error. Please try again.');
     }
   };
-  const [videoTarget, setVideoTarget] = useState<AppointmentItem | null>(null);
-  const [voiceTarget, setVoiceTarget] = useState<AppointmentItem | null>(null);
+  // Removed video and voice call state
   const [chatTarget, setChatTarget] = useState<AppointmentItem | null>(null);
   const [perceptionTarget, setPerceptionTarget] = useState<AppointmentItem | null>(null);
+  const [payTarget, setPayTarget] = useState<AppointmentItem | null>(null);
 
-  const startVideo = (a: AppointmentItem) => setVideoTarget(a);
-  const startVoice = (a: AppointmentItem) => setVoiceTarget(a);
-  const startChat = (a: AppointmentItem) => setChatTarget(a);
+  // Removed video and voice call handlers
+  const startChat = (a: AppointmentItem) => {
+    if (!a.doctor_id) {
+      Alert.alert('No doctor assigned', 'A doctor has not been assigned to this appointment yet.');
+      return;
+    }
+    setChatTarget(a);
+  };
   const openPerceptions = (a: AppointmentItem) => setPerceptionTarget(a);
 
   return (
@@ -248,27 +253,21 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
             <TouchableOpacity style={styles.perceptionLink} onPress={() => openPerceptions(a)}>
               <Text style={styles.perceptionLinkText}>View perceptions</Text>
             </TouchableOpacity>
+
+            {/* Pay Fee button */}
+            <TouchableOpacity
+              style={styles.payFeeBtn}
+              onPress={() => setPayTarget(a)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.payFeeText}>💳 Pay Fee</Text>
+            </TouchableOpacity>
             
             <View style={styles.actionRow}>
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.primaryAction]} 
-                onPress={() => startVideo(a)}
-              >
-                
-                <Text style={styles.actionText}>Video call</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.actionBtn, styles.secondaryAction]} 
-                onPress={() => startVoice(a)}
-              >
-                
-                <Text style={styles.actionText}>Voice call</Text>
-              </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.actionBtn, styles.tertiaryAction]} 
                 onPress={() => startChat(a)}
               >
-                
                 <Text style={styles.actionText}>Chat</Text>
               </TouchableOpacity>
             </View>
@@ -339,25 +338,24 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
           ) : null}
         </Modal>
 
-        <Modal visible={!!videoTarget} animationType="slide">
-          {videoTarget ? (
-            <VideoCall
-              name={videoTarget.title}
-              patientId={userId}
-              doctorId={videoTarget.doctor_id ?? ''}
-              appointmentId={videoTarget.id}
-              onEnd={() => setVideoTarget(null)}
-            />
-          ) : null}
-        </Modal>
 
-        <Modal visible={!!voiceTarget} animationType="slide">
-          {voiceTarget ? <VoiceCall name={voiceTarget.title} onEnd={() => setVoiceTarget(null)} /> : null}
-        </Modal>
 
         <Modal visible={!!perceptionTarget} animationType="slide">
           {perceptionTarget ? (
             <Prescription appointmentId={perceptionTarget.id} onClose={() => setPerceptionTarget(null)} />
+          ) : null}
+        </Modal>
+
+        {/* Payment modal */}
+        <Modal visible={!!payTarget} animationType="slide">
+          {payTarget ? (
+            <Payment
+              appointmentId={payTarget.id}
+              patientId={userId ?? ''}
+              doctorName={payTarget.title}
+              appointmentDate={payTarget.datetime}
+              onClose={() => setPayTarget(null)}
+            />
           ) : null}
         </Modal>
       </ScrollView>
@@ -520,6 +518,22 @@ const styles = StyleSheet.create({
     color: '#374151', 
     fontSize: 14,
     lineHeight: 20,
+  },
+  payFeeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#16A34A',
+  },
+  payFeeText: {
+    color: '#15803D',
+    fontWeight: '700',
+    fontSize: 13,
   },
   perceptionLink: {
     alignSelf: 'flex-start',

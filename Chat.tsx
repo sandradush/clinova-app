@@ -48,12 +48,11 @@ export default function Chat({
 
   // WebSocket — connect to patient's channel on the clinic backend
   useEffect(() => {
-    if (!patientId) return;
+    if (!patientId || !doctorId) return;
 
-    const connect = (channelId: string | number, ref: React.MutableRefObject<WebSocket | null>) => {
+    const connect = (channelId: string | number) => {
       try {
         const ws = new WebSocket(`${WS_BASE}/ws/chat/${channelId}`);
-        ref.current = ws;
         ws.onopen = () => setWsStatus('connected');
         ws.onclose = () => setWsStatus('disconnected');
         ws.onerror = () => setWsStatus('disconnected');
@@ -75,21 +74,26 @@ export default function Chat({
               me: isMe,
               timestamp: data.timestamp || '',
             };
-            setMessages(prev => [...prev, msg]);
-            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+            setMessages(prev => {
+              const exists = prev.some(m => m.id === msg.id);
+              return exists ? prev : [...prev, msg];
+            });
+            setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
           } catch (_) {}
         };
-      } catch (_) {}
+        return ws;
+      } catch (_) {
+        return null;
+      }
     };
 
-    const doctorWsRef = { current: null as WebSocket | null };
-    connect(patientId, wsRef);
-    // Also listen on doctor's channel to receive messages the doctor sends
-    if (doctorId) connect(doctorId, doctorWsRef);
+    const patientWs = connect(patientId);
+    const doctorWs = connect(doctorId);
+    wsRef.current = patientWs;
 
     return () => {
-      try { wsRef.current?.close(); } catch (_) {}
-      try { doctorWsRef.current?.close(); } catch (_) {}
+      try { patientWs?.close(); } catch (_) {}
+      try { doctorWs?.close(); } catch (_) {}
       wsRef.current = null;
     };
   }, [patientId, doctorId]);
@@ -100,8 +104,9 @@ export default function Chat({
     setText('');
     pendingSent.current.add(content);
     // Optimistic local add
-    setMessages(prev => [...prev, { id: String(Date.now()), text: content, me: true }]);
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    const tempMsg: Msg = { id: String(Date.now()), text: content, me: true };
+    setMessages(prev => [...prev, tempMsg]);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
 
     // Always send via REST — POST /api/chat/send
     // sender_id = patient (me), receiver_id = doctor
@@ -116,10 +121,10 @@ export default function Chat({
     })
       .then(r => r.json())
       .then(data => {
-        // Update the optimistic message with the real server id & timestamp
+        // Response: { id, sender, receiver, content, timestamp }
         if (data?.id) {
           setMessages(prev => prev.map(m =>
-            m.text === content && m.me && !m.timestamp
+            m.id === tempMsg.id
               ? { ...m, id: String(data.id), timestamp: data.timestamp }
               : m
           ));
