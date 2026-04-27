@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
 import { SafeAreaView as RNSSafeAreaView } from 'react-native-safe-area-context';
 import { useLang, LangCode } from './i18n';
-import MedicalRecord from './MedicalRecord';
 
 export default function Settings({ email, onLogout, onBack, userId }: {
   email?: string;
@@ -13,7 +12,6 @@ export default function Settings({ email, onLogout, onBack, userId }: {
   const { t, lang, setLang } = useLang();
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
-  const [showMedicalRecord, setShowMedicalRecord] = useState(false);
 
   const LANGUAGES: { code: LangCode; label: string; native: string }[] = [
     { code: 'en', label: 'English',     native: 'English' },
@@ -21,11 +19,6 @@ export default function Settings({ email, onLogout, onBack, userId }: {
     { code: 'rw', label: 'Kinyarwanda', native: 'Kinyarwanda' },
   ];
   const currentLang = LANGUAGES.find(l => l.code === lang);
-
-  // Full-screen Medical Record page
-  if (showMedicalRecord) {
-    return <MedicalRecord userId={userId} onBack={() => setShowMedicalRecord(false)} />;
-  }
 
   return (
     <RNSSafeAreaView style={styles.safe}>
@@ -41,18 +34,6 @@ export default function Settings({ email, onLogout, onBack, userId }: {
               </TouchableOpacity>
             ) : null}
           </View>
-        </View>
-
-        {/* Health section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Health</Text>
-          <TouchableOpacity style={styles.menuItem} onPress={() => setShowMedicalRecord(true)}>
-            <View style={styles.menuItemLeft}>
-              <View style={styles.menuItemIconBox}><Text style={styles.menuItemIconText}>🏥</Text></View>
-              <Text style={styles.menuItemText}>Medical Record</Text>
-            </View>
-            <Text style={styles.menuItemArrow}>›</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Language section */}

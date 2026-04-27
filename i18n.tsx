@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type LangCode = 'en' | 'fr' | 'rw';
 
@@ -189,12 +190,46 @@ const LangContext = createContext<LangContextType>({
 });
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLang] = useState<LangCode>('en');
+  const [lang, setLangState] = useState<LangCode>('en');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load saved language on mount
+  useEffect(() => {
+    const loadLanguage = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('app_language');
+        if (saved && (saved === 'en' || saved === 'fr' || saved === 'rw')) {
+          setLangState(saved as LangCode);
+        }
+      } catch (e) {
+        console.warn('Failed to load language:', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadLanguage();
+  }, []);
+
+  // Save language when it changes
+  const setLang = async (newLang: LangCode) => {
+    setLangState(newLang);
+    try {
+      await AsyncStorage.setItem('app_language', newLang);
+    } catch (e) {
+      console.warn('Failed to save language:', e);
+    }
+  };
+
+  if (isLoading) {
+    return null; // Or return a loading screen
+  }
+
   return (
     <LangContext.Provider value={{ lang, setLang, t: translations[lang] }}>
       {children}
     </LangContext.Provider>
   );
 }
+
 
 export const useLang = () => useContext(LangContext);

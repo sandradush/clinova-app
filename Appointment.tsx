@@ -250,10 +250,6 @@ export default function Appointment({ userId, onBack }: { userId?: number; onBac
               </View>
             ) : null}
 
-            <TouchableOpacity style={styles.perceptionLink} onPress={() => openPerceptions(a)}>
-              <Text style={styles.perceptionLinkText}>View perceptions</Text>
-            </TouchableOpacity>
-
             {/* Pay Fee button */}
             <TouchableOpacity
               style={styles.payFeeBtn}
